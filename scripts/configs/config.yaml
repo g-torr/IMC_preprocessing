@@ -1,0 +1,85 @@
+#seed: 42  # Random seed for reproducibility
+balanced_train: True
+root_data_folder: '../../'# it is the folder that contains IMC_data
+extraction: 'all' #choose between no, all, mcd_2_ome_tiff,ome_tiff_2_tiff,rename_leap_id, see reformatting_all_files.py for more info
+model:
+  name: 'xgboost' # Name of the model (choices: gnn, logistic, randomforest, xgboost)
+  feature_dim: ??? # Dimensionality of Features
+  # Logistic regression hyperparameters 
+  normalise_features: False
+  # Data splitting parameters
+  eval: ??? # Evaluation method ('split' for train/test split, 'LeaveOneOut' for LeaveOneOut evaluation)
+  pcriterion: 'majority'
+  LOG_PATH: '/Users/asifkhan/workspace/SpatialCellAnalysis/ML4SpatialAnalysis/logs'  # Path to save model logs
+  tok_k_attr: 10
+  # Graph construction parameters
+  # Feature selection criteria
+  fnorm: 'minmax'  # Normalisation criterion for cell features ('minmax', 'log1p', 'raw', 'arctan', 'znorm' - averages marker intensities in a ROI)
+  gcriterion: null   # Feature selection criterion for graph features (choices: null, laplacian_spectrum, heat_trace, graphproperties or gcn)
+  gf_dim: 32      # Dimensionality of graph features
+
+  logistic:
+    penalty: null     # L1 or L2 regularization penalty (None for no regularization)
+    l1_ratio: 0.5    # Ratio of L1 to L2 penalty (if penalty is not None)
+    solver: 'lbfgs'   # Optimization algorithm for logistic regression
+    max_iter: 1000   # Maximum number of iterations
+    tol: 0.00001     # Tolerance level for convergence
+    random_state: ???
+    class_weight: null
+
+  # GCN hyperparameters
+  gnn:
+    gconv: 'gcn'
+    lr: 0.01       # Learning rate
+    nm_epochs: 20    # Number of training epochs
+    device: 'mps'    # Device to use for training (e.g., 'cpu' or 'mps' for Apple Metal)
+    logger: ???
+    batch_size: 128   # Batch size for training
+    fnorm: ???  # Normalisation criterion for cell features ('avgcellexpression' - averages marker intensities in a ROI)
+    class_weight: null
+    gcn:
+      hidden_dim: ???  # Dimensionality of hidden layer (needs to be specified)
+      input_dim: ???  # Input feature dimensionality (needs to be specified)
+      nm_class: 1
+    ssgcn:
+      hidden_dim: ???  # Dimensionality of hidden layer (needs to be specified)
+      input_dim: ???  # Input feature dimensionality (needs to be specified)
+      K: 4
+      alpha: 0.4
+      nm_class: 1
+  randomforest:
+    n_estimators: 100          # Number of trees in the forest
+    criterion: 'gini'          # Criterion for splitting: 'gini' (Gini impurity) or 'entropy' (information gain)
+    max_depth: null            # Maximum depth of the tree. None means unlimited depth.
+    min_samples_split: 2       # Minimum number of samples required to split an internal node
+    min_samples_leaf: 1        # Minimum number of samples required to be at a leaf node
+    min_weight_fraction_leaf: 0 # Minimum weighted fraction of the sum total of weights (for each class) required to be at a leaf node
+    max_features: 'sqrt'       # Number of features to consider when looking for the best split: 'auto' (sqrt(n_features)), 'sqrt', 'log2', None, int, float
+    max_leaf_nodes: null       # Grow trees with max_leaf_nodes in best-first fashion
+    min_impurity_decrease: 0   # A node will be split if this split induces a decrease of the impurity greater than or equal to this value
+    bootstrap: True            # Whether bootstrap samples are used when building trees
+    oob_score: False           # Whether to use out-of-bag samples to estimate the generalization accuracy
+    n_jobs: 12               # Number of jobs to run in parallel for both fit and predict. None means 1 unless in a joblib.parallel_backend context
+    warm_start: False          # When set to True, reuse the solution of the previous call to fit and add more estimators to the ensemble
+    class_weight: null         # Weights associated with classes in the form {class_label: weight}
+    ccp_alpha: 0.0               # Complexity parameter used for Minimal Cost-Complexity Pruning. Higher values increase the number of nodes pruned  
+    random_state: ???
+    class_weight: null
+  xgboost:
+    objective: 'binary:logistic'  # For binary classification
+    max_depth: 3                   # Maximum depth of a tree
+    learning_rate: 0.1             # Learning rate
+    n_estimators: 100               # Number of boosting rounds
+    scale_pos_weight: null
+
+
+# Dataset parameters
+dataset:
+  DATA_PATH: '/Users/asifkhan/workspace/SpatialCellAnalysis/ML4SpatialAnalysis/data'  # Path to the data directory
+  cell_filename: 'cell_table_size_normalized_cell_labels_corrected_labels'  # Filename containing cell table data
+  response_filename: 'processed_response_enR'  # Filename containing response labels
+  k: 7              # Number of nearest neighbors (used for 'cellcell' graphs with 'knn' or 'atmostk' method)
+  gmethod: 'knn'     # Method for constructing the graph adjacency matrix ('knn' 'atmostk', 'delaunay' or 'radius')
+  datasplit: 'split' # Evaluation method ('split' for train/test split, 'kfold' for KFold evaluation)
+  test_ratio: 0.3  # Proportion of data used for testing
+  folds: 5           # Number of folds for cross-validation
