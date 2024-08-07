@@ -1,5 +1,6 @@
 
-root_data_folder:  '../../'# it is the folder that contains IMC_data
+root_data_folder:  '../../' # it is the path to the folder that contains IMC_data
+mcd_data_folder : 'IMC_data'
 extraction: 'no' #choose between no, all, mcd_2_ome_tiff,ome_tiff_2_tiff,rename_leap_id, see reformatting_all_files.py for more info
 #folder name where tiff files are saved
 tiff_folder_name_split: 'split_channels_nohpf' #folder where tiff are split channel by channel

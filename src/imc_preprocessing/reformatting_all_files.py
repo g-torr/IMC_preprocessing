@@ -77,38 +77,33 @@ def create_panel_from_acquisition(acquisition):
 
     return panel
 
-def mcd_2_ome_tiff(root_data_folder):
+def mcd_2_ome_tiff(config):
     '''This function extracts anything there is to extract from the mcd files and generate a metadata csv file.'''
-    reprocess_mcd = True
-    path0 = os.path.join(root_data_folder,'IMC_data')
-    mcd_files_list = [str(el) for el in sorted(Path(path0).rglob("[!.]*.mcd"))]
+    reprocess_mcd = True# False skip mcd extraction if tiff file already exists
+    root_data_folder = config['root_data_folder']
+
+    path0 = os.path.join(root_data_folder,config['mcd_data_folder'])
     mcd_files_list = [str(el) for el in sorted(Path(path0).rglob("[!.]*.mcd"))]
     mcd_files_list = pd.Series(mcd_files_list)
     mcd_files_list = mcd_files_list[~mcd_files_list.str.contains(r"Large Pano MCD files|PanoramasCRUCKCI")]# these are all empty without acquisitions
 
 
-    biobank = pd.read_excel(os.path.join(path0,'ExtraDocs','biobank list.xlsx'))
-    biobank.rename({'BIOBANK ID':'BIOBANK_ID'},inplace=True,axis = 1)
-    biobank.dropna(axis = 0,inplace=True)
-    biobank['code'] = biobank.BIOBANK_ID.str.split('-').str[0]
-    code_2_Leap = biobank[['LEAP ID','code']].drop_duplicates().set_index('code')
-
     data_folder = ['/'.join(mcd_file.split('/')[:-1])for mcd_file in mcd_files_list]#take the path up to a level of the mcd file, it should contain the txt files
 
-    tiff_files = [str(el) for el in sorted(Path(os.path.join(root_data_folder,'split_channels')).rglob("[!.]*.tiff"))]
+    tiff_files = [str(el) for el in sorted(Path(os.path.join(root_data_folder,config['tiff_folder_name_split'])).rglob("[!.]*.tiff"))]
     if reprocess_mcd:
         Leap_existing_files = []
 
     else:
-        Leap_existing_files =        pd.Series(tiff_files).str.lstrip(os.path.join(root_data_folder,'split_channels')).str.split('/').str[0].str.split('_').str[0].unique()
+        Leap_existing_files =        pd.Series(tiff_files).str.replace(os.path.join(root_data_folder,config['tiff_folder_name_split']),'').str.split('/').str[0].str.split('_').str[0].unique()
 
     acquisition_metadatas = []
     file_saved = []
     for mcd_file,main_folder in tqdm(list(zip(mcd_files_list,data_folder))):
         #main_folder is where the mcd files sit
-        Leap_folder = mcd_file.replace(path0,'.').split('/',maxsplit = 2)[1] 
-        mcd_folder = '/'.join(mcd_file.split('/')[:-1])
-        if mcd_file.lstrip(path0).split('/')[0] in Leap_existing_files:
+        Leap_folder = mcd_file.replace(path0,'.').split('/',maxsplit = 2)[1] # take the highest directory inside path0 where the where the mcd file is
+        #mcd_folder = '/'.join(mcd_file.split('/')[:-1])
+        if mcd_file.replace(path0,'').split('/')[0] in Leap_existing_files:
             print('skipping'+mcd_file)
             continue
         #load metadata        
@@ -299,7 +294,7 @@ def main(config):
         tiff_folder_name_combined = config['tiff_folder_name_combined']
         if (config['extraction']=='all') or (config['extraction']=='mcd_2_ome_tiff'):
             logger.info('Extracting ome-tiff from mcd ...')
-            mcd_2_ome_tiff(root_data_folder)
+            mcd_2_ome_tiff(config)
         elif(config['extraction']=='all') or (config['extraction']=='ome_tiff_2_tiff'):
             logger.info('Extracting tiff from ome-tiff ...')
             ome_tiff_2_tiff(root_data_folder,tiff_folder_name_split,tiff_folder_name_combined)
