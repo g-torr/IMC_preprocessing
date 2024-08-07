@@ -1,7 +1,13 @@
 # IMC preprocessing
 Extraction and preprocessing pipeline for IMC data. From a single mcd file, it extracts the tiff files using [steinbock](https://bodenmillergroup.github.io/steinbock/)  and run  [IMC denoise](https://github.com/PENGLU-WashU/IMC_Denoise) for denoising. 
 ## Installation
-- Download the source code and install the package in your folder.
+Install the dependency IMC Denoise
+```
+$ git clone https://github.com/g-torr/IMC_Denoise.git
+$ cd IMC_Denoise
+$ pip install -e .
+```
+- Download the repo and install the package in your folder.
 ```
 $ git clone https://github.com/g-torr/IMC_preprocessing.git
 $ cd IMC_preprocessing
