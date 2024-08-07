@@ -1,4 +1,5 @@
 from  imc_preprocessing.utils import load_config
+from imc_preprocessing import Denoise_train, Denoise_predict
 import argparse
 import logging
 logger = logging.getLogger(__name__)
@@ -15,7 +16,8 @@ def main():
     else:
         logging.info('Skipping extraction')
     #-----IMC_Denoise---
-    
+    Denoise_train.main_train(config_file)
+    Denoise_predict.main(config_file)
 # Entry point for the script, parses arguments and loads configuration
 if __name__ == '__main__':
     main()

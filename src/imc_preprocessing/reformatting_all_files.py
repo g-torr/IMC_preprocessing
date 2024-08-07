@@ -12,14 +12,35 @@ from readimc.data.panorama import Panorama
 from readimc.data.slide import Slide
 import shutil
 import re
+import argparse
 from scipy.ndimage import maximum_filter
 import tifffile
 import logging
 from imc_preprocessing import imcsegpipe
 # this is a small variation of the repo
 import logging
-logging.basicConfig(filename='logging.log', encoding='utf-8', level=logging.DEBUG)
+import logging.handlers
+
+# Configure file handler with rotation
+file_handler = logging.handlers.RotatingFileHandler('logging.log', maxBytes=1048576, backupCount=5, encoding='utf-8')
+file_handler.setLevel(logging.DEBUG)
+file_formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+file_handler.setFormatter(file_formatter)
+
+# Configure console handler
+console_handler = logging.StreamHandler()
+console_handler.setLevel(logging.INFO)
+console_formatter = logging.Formatter('%(levelname)s: %(message)s')
+console_handler.setFormatter(console_formatter)
+
+# Create logger
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+
+# Add handlers to logger
+logger.addHandler(file_handler)
+logger.addHandler(console_handler)
+
 
 #from imcsegpipe.utils import sort_channels_by_mass
 #import  imcsegpipe._imcsegpipe as imcsegpipe
@@ -102,7 +123,7 @@ def mcd_2_ome_tiff(root_data_folder):
     acquisition_metadata = pd.concat(acquisition_metadatas, copy=False)
     acquisition_metadata.to_csv(path0 +"/acquisition_metadata.csv",mode = 'w')
 
-def ome_tiff_2_tiff(root_data_folder):
+def ome_tiff_2_tiff(root_data_folder,tiff_folder_name_split,tiff_folder_name_combined):
     '''Extracts and saves the tiff files in appropriate folders. It also correct the names whenever appropriate'''
     tqdm.pandas()
     path0, code_2_Leap, path_tb, new_names, metadata, panel = find_and_name_ome_tiff(root_data_folder)
@@ -154,7 +175,9 @@ def ome_tiff_2_tiff(root_data_folder):
             #Claudia said that is to be removed
             continue
         if (Leap_ID =='Leap091') and (str(row['id']) in ['8','9','10']):
-            Leap_ID ='Leap092'#Claudia mention on the Whatsapp this is to be renamed
+            Leap_ID ='Leap092'#Claudia mention on Whatsapp this is to be renamed
+        
+        Leap_ID =  Leap_ID.replace(' ','').capitalize()#remove any space in the name and make in capitalised format
         new_name = Leap_ID+'_'+str(row['id'])
         new_names+=[new_name]
 
@@ -163,24 +186,26 @@ def ome_tiff_2_tiff(root_data_folder):
             #if image is not at least of 128 pixel per side, ignore it
             continue
         img= img[~panel.marker.isna()]
-        output_path = os.path.join(root_data_folder,'..','combined_tiff',Leap_ID)#
+        output_path = os.path.join(root_data_folder,tiff_folder_name_combined,Leap_ID)#
+        logger.info('Saving in '+output_path)
         if not os.path.exists(output_path):
             #if folder does not exist, create it
             os.makedirs(output_path)
 
         tifffile.imwrite( 
-        output_path+new_name+'.tiff',
+        os.path.join(output_path,new_name+'.tiff'),
         data=img[np.newaxis, np.newaxis, :, :, :, np.newaxis],
         imagej=img.dtype in (np.uint8, np.uint16, np.float32),
         )
         #save in  the split_channels
-        output_path_split = os.path.join(root_data_folder,'..','split_channels_nohpf',new_name)# eg. ../split_channels/Leap001_10'               
+        output_path_split = os.path.join(root_data_folder,tiff_folder_name_split,new_name)# eg. ../split_channels/Leap001_10'        
+        logger.info('Saving in '+output_path)       
         if not os.path.exists(output_path_split):
             #if folder does not exist, create it
             os.makedirs(output_path_split)
         for channel,marker in list(zip(img,panel.dropna(axis = 0).marker.values)):
             tifffile.imwrite( 
-            output_path_split+marker+'.tiff',
+            os.path.join(output_path_split,marker+'.tiff'),
             data=channel
             )
         panel.to_csv(path0+'/panel.csv')
@@ -214,7 +239,7 @@ def get_root(root_data_folder, path_tb):
     return path_tb.path.astype(str).str.lstrip(os.path.join(root_data_folder,'IMC_data')).str.split('/acquisition/').str[0]
 
 #rename files and correct according to Leor table
-def rename_leap_id(root_data_folder):
+def rename_leap_id(root_data_folder,tiff_folder_name_split):
     def leap3_4():
         swap_from_leap4_to_leap3 =[14,15,16]
         swap_from_leap3_to_leap4 =[11,12,13]
@@ -252,17 +277,17 @@ def rename_leap_id(root_data_folder):
         return files_2_delete,files_2_rename
 
     files_2_delete,files_2_rename = aggregate_changes()
-    output_path = os.path.join(root_data_folder,'split_channels_nohpf/')
+    output_path = os.path.join(root_data_folder,tiff_folder_name_split)
     for file in files_2_delete:
         try:
-            shutil.rmtree(output_path+file)
+            shutil.rmtree(os.path.join(output_path,file))
         except FileNotFoundError:
             logging.warn(output_path+file+' not found')
     for old,new in files_2_rename.items():
         try:
-            os.rename(output_path+old,output_path+new)
+            os.rename(os.path.join(output_path,old),os.path.join(output_path,new))
         except:
-            logging.warn(output_path+old+' not found')
+            logging.warn(os.path.join(output_path,old)+' not found')
 def main(config):
     correct_extraction_options = ['no','all','mcd_2_ome_tiff','ome_tiff_2_tiff','rename_leap_id']
     root_data_folder = config['root_data_folder']
@@ -270,18 +295,20 @@ def main(config):
     if config['extraction'] not in correct_extraction_options:
         raise ValueError('Field "extraction" of config file '+args.config+' contains unrecognised value: '+config['extraction']+'. Please use instead one of the following options: '+','.join(correct_extraction_options) )
     if config['extraction']!='no':
-        import imc_preprocessing.reformatting_all_files as extraction
+        tiff_folder_name_split = config['tiff_folder_name_split']
+        tiff_folder_name_combined = config['tiff_folder_name_combined']
         if (config['extraction']=='all') or (config['extraction']=='mcd_2_ome_tiff'):
-            logging.info('Extracting ome-tiff from mcd ...')
-            extraction.mcd_2_ome_tiff(root_data_folder)
+            logger.info('Extracting ome-tiff from mcd ...')
+            mcd_2_ome_tiff(root_data_folder)
         elif(config['extraction']=='all') or (config['extraction']=='ome_tiff_2_tiff'):
-            extraction.ome_tiff_2_tiff(root_data_folder)
-            logging.info('Extracting tiff from ome-tiff ...')
+            logger.info('Extracting tiff from ome-tiff ...')
+            ome_tiff_2_tiff(root_data_folder,tiff_folder_name_split,tiff_folder_name_combined)
+
         elif(config['extraction']=='all') or (config['extraction']=='rename_leap_id'):
-            extraction.rename_leap_id(root_data_folder)
-            logging.info('Renaming leap id ...')
+            logger.info('Renaming leap id ...')
+            rename_leap_id(root_data_folder,tiff_folder_name_split)# it does not correct for the files in the combined tiff folder
     else:
-        logging.info('Skipping extraction')
+        logger.info('Skipping extraction')
 if __name__=='__main__':
     '''While it is recommended to run from main.py, this can be run as a standalone script using the config.yaml configuration '''
     from  imc_preprocessing.utils import load_config
