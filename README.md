@@ -28,7 +28,7 @@ The configuration file assumes that mcd data ar located in the folder `mcd_data_
 |---IMC_preprocessing
 |---|---|scripts|main.py
 ```
-Each mcd file may contain several acquisitions. These are saved in `tiff_folder_name_split` and `tiff_folder_name_combined` as grayscale and multichannel tiffs respectively. Here `a` and `b` represents acquisition ids.
+Each mcd file may contain several acquisitions. Acquisitions are saved in `tiff_folder_name_split` and `tiff_folder_name_combined` as grayscale and multichannel tiffs respectively. Here `a` and `b` represents acquisition ids.
 
 ```
 |---IMC_data
@@ -37,10 +37,7 @@ Each mcd file may contain several acquisitions. These are saved in `tiff_folder_
 |---|---Leap001_a
 |---|---|---|channel1.tiff
              ...
-
 |---|---|---|channeln.tiff
-
-
 |---|---Leap002_x_b
 |---|---|---|channel1.tiff
              ...
