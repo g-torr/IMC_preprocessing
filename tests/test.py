@@ -11,7 +11,7 @@ def test_arguments(**args):
     pass
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--config', type=str, default='../scripts/configs/config.yaml', help='Configuration file')
+    parser.add_argument('--config', type=str, default=os.path.join('..','scripts','configs','config.yaml'), help='Configuration file')
     args = parser.parse_args()
     config = load_config(args.config)
     ##----From mcd to tiff-------

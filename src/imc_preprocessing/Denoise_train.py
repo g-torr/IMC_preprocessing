@@ -1,10 +1,7 @@
 import os
-#!/usr/bin/env python
-# coding: utf-8
 
 # # IMC-Denoise: a content aware denoising pipeline to enhance imaging mass cytometry
-
-# Here we will show an example for denoising the images with marker CD14 from our own human bone marrow IMC dataset. 
+# It trains for a batch of data, potentially with different sizes
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -34,7 +31,16 @@ print("Num GPUs Available: ", len(tf.config.list_physical_devices('GPU')))
 
 
 def generate_patches(channel_name,Raw_directory,Save_directory,n_neighbours,n_iter,window_size ):
-    '''Generate images patches and save them to disk'''
+    '''Generate images patches and save them to disk
+    
+    Args:
+        channel_name (str): The name of the channel to be processed, e.g., "144Nd" for the CD14 marker.
+        Raw_directory (str): The directory containing the raw input images.
+        Save_directory (str): The directory to save the generated training data.
+        n_neighbours (int): Parameter for the DIMR algorithm used for hot pixel removal during training set generation.
+        n_iter (int): Parameter for the DIMR algorithm used for hot pixel removal during training set generation.
+        window_size (int): The size of the window used for generating the patches.
+    '''
 
     # ### Training data preparation
     # Next, we use our raw images to build a training set.
@@ -86,7 +92,15 @@ def generate_patches(channel_name,Raw_directory,Save_directory,n_neighbours,n_it
 
 def load_and_train(channel_name,deepsnif, Save_directory):
     '''
-    Load the generated training data from directory
+    Load the generated training data from directory and train the DeepSNiF model.
+    
+    Args:
+        channel_name (str): The name of the channel to be processed.
+        deepsnif (DeepSNiF): An instance of the DeepSNiF class.
+        Save_directory (str): The directory containing the saved training data.
+    
+    Returns:
+        tuple: Training loss and validation loss.
     '''
     saved_training_set = 'training_set_'+channel_name+'.npz'
     train_data = load_training_patches(filename = saved_training_set, save_directory = Save_directory)
@@ -95,6 +109,13 @@ def load_and_train(channel_name,deepsnif, Save_directory):
     return train_loss, val_loss
 
 def main_train(config):
+    """
+    Orchestrate the training process.
+    
+    Args:
+        config (dict): A dictionary containing the configuration parameters for the training process.
+                    It is generally generated from a config.yaml file.
+    """
     root_data_folder = config['root_data_folder']
     tiff_folder_name_split = config['tiff_folder_name_split']
     Raw_directory = os.path.join(root_data_folder,tiff_folder_name_split)#directory for  raw images input that IMC_Denoise is trained on
@@ -143,7 +164,8 @@ def main_train(config):
                             loss_name = params['loss_name'],
                             weights_dir = weights_path, 
                             is_load_weights = params['is_load_weights'],
-                            lambda_HF = float(params['lambda_HF']))
+                            lambda_HF = float(params['lambda_HF'],
+                            network_size = params['network_size']))
 
             train_loss, val_loss = load_and_train(channel_name,deepsnif = deepsnif, Save_directory =  Save_directory)
             np.save(os.path.join(Save_directory,'trained_weights','loss_tv_'+channel_name+'npy'),[train_loss, val_loss])

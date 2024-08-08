@@ -10,9 +10,6 @@ from os import listdir
 from os.path import isfile, join, abspath, exists
 from glob import glob
 import tifffile as tp
-from tensorflow.keras import optimizers
-from tensorflow.keras.models import Model
-from tensorflow.keras.layers import Input
 from IMC_Denoise.IMC_Denoise_main.DeepSNiF_model import DeepSNiF_net, DeepSNiF_net_small
 from IMC_Denoise.IMC_Denoise_main.loss_functions import create_I_divergence, create_mse
 from IMC_Denoise.IMC_Denoise_main.DIMR import DIMR
@@ -49,8 +46,17 @@ args = parser.parse_args()
 print(args)
 '''
 def load_imgs(channel_name,Raw_directory,myDIMR):
-    '''Load images and apply DIMR if selected'''
-
+    """
+    Load images and apply DIMR.
+    
+    Args:
+        channel_name (str): The name of the channel to be processed.
+        Raw_directory (str): The directory containing the raw input images.
+        myDIMR (DIMR): An instance of the DIMR class.
+    
+    Returns:
+        tuple: A list of `single_img_info` objects, the maximum row number, and the maximum column number.
+    """
 
     Max_row_num = 0
     Max_col_num = 0
@@ -72,9 +78,15 @@ def load_imgs(channel_name,Raw_directory,myDIMR):
     Max_col_num = int((Max_col_num//16+1)*16)
     return Image_collect,Max_row_num,Max_col_num
 def process_channel(channel_name,params,weights_path,Raw_directory,output_directory):
-    '''This function runs the full prediction pipeline on all images of channel_name.
-    It runs DIMR, it create a image collection where all images are in the same shape, 
-    it runs deepsnif, and then inverse transforms images back to their original shape.
+    '''
+        Run the full prediction pipeline on all images of the specified channel.
+    
+    Args:
+        channel_name (str): The name of the channel to be processed.
+        params (dict): A dictionary of parameters for the IMC Denoise pipeline.
+        weights_path (str): The directory containing the trained model weights.
+        Raw_directory (str): The directory containing the raw input images.
+        output_directory (str): The directory to save the denoised images.
     '''
     weights_name = "weights_"+channel_name+".keras"
     myDIMR = DIMR(n_neighbours = params['n_neighbours'], n_iter = params['n_iter'], window_size = params['window_size'])
@@ -98,6 +110,19 @@ def process_channel(channel_name,params,weights_path,Raw_directory,output_direct
 
 
 def transform_images(params, deepsnif, Image_collect, Max_row_num, Max_col_num):
+    '''
+    Transform the input images to have the same shape.
+    
+    Args:
+        params (dict): A dictionary of parameters for the IMC Denoise pipeline.
+        deepsnif (DeepSNiF): An instance of the DeepSNiF class.
+        Image_collect (list): A list of `single_img_info` objects.
+        Max_row_num (int): The maximum row number.
+        Max_col_num (int): The maximum column number.
+    
+    Returns:
+        np.ndarray: The transformed input images.
+    '''
     Img_num = len(Image_collect)
     All_img_read = np.zeros((Img_num, Max_row_num, Max_col_num, 1))
     for ii in range(Img_num):
@@ -121,8 +146,17 @@ def transform_images(params, deepsnif, Image_collect, Max_row_num, Max_col_num):
     return All_img_read
 
 def finalise_denoised_images(params, Raw_directory, output_directory, deepsnif, Image_collect,  All_img_denoised):
-    '''Transform images in the original channel space, cut images to fit in their original shape,
-    and save them to disk'''
+    '''
+     Transform the denoised images back to their original shape and save them to disk.
+    
+    Args:
+        params (dict): A dictionary of parameters for the IMC Denoise pipeline.
+        Raw_directory (str): The directory containing the raw input images.
+        output_directory (str): The directory to save the denoised images.
+        deepsnif (DeepSNiF): An instance of the DeepSNiF class.
+        Image_collect (list): A list of `single_img_info` objects.
+        All_img_denoised (np.ndarray): The denoised images.
+        '''
     Img_num = len(Image_collect)
     for ii in range(Img_num):
         Img_denoised = All_img_denoised[ii][:,:,0]
@@ -155,6 +189,15 @@ class single_img_info:
         self.Pad_dims = Pad_dims
 
 def split_border(length):
+    """
+    Split a length value into two equal parts, with the second part being one larger if the length is odd.
+    
+    Args:
+        length (int): The length to be split.
+    
+    Returns:
+        tuple: The two split values.
+    """
     half_length = int(length/2)
     if length%2 == 0:
         return half_length, half_length
@@ -162,6 +205,12 @@ def split_border(length):
         return half_length, half_length + 1
 
 def main(config):
+    """
+    The main function that runs the IMC Denoise pipeline.
+    
+    Args:
+        config (dict): A dictionary of configuration parameters.
+    """
     params = config['IMC_Denoise']['params']
     if not str2bool(params['GPU']):
         os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
