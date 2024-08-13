@@ -19,28 +19,7 @@ import logging
 from imc_preprocessing import imcsegpipe
 # this is a small variation of the repo
 import logging
-import logging.handlers
-
-# Configure file handler with rotation
-file_handler = logging.handlers.RotatingFileHandler('logging.log', maxBytes=1048576, backupCount=5, encoding='utf-8')
-file_handler.setLevel(logging.DEBUG)
-file_formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-file_handler.setFormatter(file_formatter)
-
-# Configure console handler
-console_handler = logging.StreamHandler()
-console_handler.setLevel(logging.INFO)
-console_formatter = logging.Formatter('%(levelname)s: %(message)s')
-console_handler.setFormatter(console_formatter)
-
-# Create logger
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
-
-# Add handlers to logger
-logger.addHandler(file_handler)
-logger.addHandler(console_handler)
-
 
 #from imcsegpipe.utils import sort_channels_by_mass
 #import  imcsegpipe._imcsegpipe as imcsegpipe
@@ -121,7 +100,8 @@ def mcd_2_ome_tiff(config):
 def ome_tiff_2_tiff(root_data_folder,tiff_folder_name_split,tiff_folder_name_combined):
     '''Extracts and saves the tiff files in appropriate folders. It also correct the names whenever appropriate'''
     tqdm.pandas()
-    path0, code_2_Leap, path_tb, new_names, metadata, panel = find_and_name_ome_tiff(root_data_folder)
+    path0, code_2_Leap, path_tb,  metadata, panel = find_and_name_ome_tiff(root_data_folder)
+
     for _,file_row in tqdm(path_tb.iterrows()):
         #old_name = row['AcSession']+'_'+str(row['id'])
         # Pattern to match the specific format
@@ -174,7 +154,6 @@ def ome_tiff_2_tiff(root_data_folder,tiff_folder_name_split,tiff_folder_name_com
         
         Leap_ID =  Leap_ID.replace(' ','').capitalize()#remove any space in the name and make in capitalised format
         new_name = Leap_ID+'_'+str(row['id'])
-        new_names+=[new_name]
 
         img = tifffile.imread(file_row.path)
         if np.any(np.array(img.shape[1:])<128):
@@ -217,7 +196,6 @@ def find_and_name_ome_tiff(root_data_folder):
     path_tb = pd.DataFrame(ome_tiff_paths,columns = ['path'])
     path_tb['filename'] = path_tb['path'].apply(lambda x:x.name).str.rstrip('_ac.ome.tiff')
     path_tb['root'] = get_root(root_data_folder, path_tb)#return the path where the acquisition folder is, this is to match metadata['root'] below
-    new_names = []
     metadata = pd.read_csv(path0+'/acquisition_metadata.csv')
     #make root the path to the folder containing the mcd file
     metadata ['root'] = metadata.source_path.str.lstrip(  os.path.join(os.getcwd(),root_data_folder,'IMC_data')).str.split('/').str[0]
@@ -227,7 +205,7 @@ def find_and_name_ome_tiff(root_data_folder):
     panel = pd.read_csv(panel_file)
     panel['marker'] = panel[panel.channel_label.str.contains('-')].channel_label.str.split('-',n = 1).str[1]
     panel.loc[panel['channel_name'] == 'Pt195','marker']='Carboplatin'
-    return path0,code_2_Leap,path_tb,new_names,metadata,panel
+    return path0,code_2_Leap,path_tb,metadata,panel
 
 def get_root(root_data_folder, path_tb):
     '''Remove the trailing path and return  the folder where "acquisition" folder is'''

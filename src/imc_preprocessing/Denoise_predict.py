@@ -17,6 +17,10 @@ from IMC_Denoise.IMC_Denoise_main.DeepSNiF import DeepSNiF
 
 from IMC_Denoise.Anscombe_transform.Anscombe_transform_functions import Anscombe_forward, Anscombe_inverse_exact_unbiased
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 def str2bool(v):
     if isinstance(v, bool):
        return v
@@ -178,7 +182,7 @@ def finalise_denoised_images(params, Raw_directory, output_directory, deepsnif, 
             os.makedirs(sub_save_directory)
         tp.imsave(join(sub_save_directory, Img_name), Img_denoised.astype('float32'))
 
-        print(sub_save_directory + Img_name + ' saved!')
+        logger.info(sub_save_directory + Img_name + ' saved!')
 
 # define a class to save image information
 class single_img_info:
@@ -243,8 +247,9 @@ def main(config):
         raise ValueError('No file found in '+Raw_directory)
 
     for channel_name in channel_list:
+        logger.info('Denoise prediction of Channel '+channel_name+' started.')
         start = time.time()
         process_channel(channel_name,params,weights_path,Raw_directory,output_directory)
         _ = gc.collect()
         end = time.time()
-        print(end - start)
+        logger.info('Channel '+channel_name+'took '+str(end - start)+' seconds')

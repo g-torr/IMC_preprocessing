@@ -15,7 +15,7 @@ def main():
     args = parser.parse_args()
     config = load_config(args.config)
     ##----From mcd to tiff-------
-    import imc_preprocessing.reformatting_all_files as extraction
+    import imc_preprocessing.extraction as extraction
     print(config)
     ### IMC denoise
     root_data_folder = config['root_data_folder']

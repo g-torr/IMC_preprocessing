@@ -2,16 +2,17 @@
 root_data_folder:  '../../' # it is the path to the folder that contains IMC_data
 mcd_data_folder : 'IMC_data'
 extraction: 'no' #choose between no, all, mcd_2_ome_tiff,ome_tiff_2_tiff,rename_leap_id, see reformatting_all_files.py for more info
-#folder name where tiff files are saved
-tiff_folder_name_split: 'split_channels_nohpf' #folder where tiff are split channel by channel
+#folder name where tiff files are saved. No skips the extractions
+tiff_folder_name_split: 'split_channels_nohpf' #folder where tiff are split channel by channel. Data are saved in root_data_folder/tiff_folder_name_split
 tiff_folder_name_combined: 'combined_tiff' #folder containing a multichannel tiff per fov
-
+biosamples_file : '../processed_response.csv' # file containing the metadata for each Leap id. File must be in root_data_folder/biosamples_file
 # IMC denoise parameters
 IMC_Denoise:
-  retrain: True #force retrain of the model
+  skip : False #True ignore the IMC_Denoise step
+  retrain: False #force retrain of the model, False ignores training on markers that already have their weights saved in Save_directory/weights_folder
   weights_folder: 'trained_weights' # subfolder of Save_directory where 'weights_name' and 'loss_name' saved.
   Save_directory : '../IMC_Denoise_intermediate_files/' #Folder where the training weights will be saved. If None, it will be saved in the default folder.
-  output_directory : '../../Img_Denoised/non_preprocessed'
+  output_directory : '../../Img_Denoised/non_preprocessed' #path to where processed images are saved, insert absolute or relative path. Relative path refers from the folder where the script `main.py` is run
   channels_to_exclude : 'Carboplatin' #separate channels to be excluded using a comma, e.g. 'channelA,channelB'
   params:
     n_neighbours : 10 # Larger n enables removing more consecutive hot pixels. 
@@ -31,6 +32,10 @@ IMC_Denoise:
     is_load_weights : False # Use the trained model directly. Will not read from any saved ones.
     lambda_HF : 3e-6 # HF regularization parameter.
     GPU: False # whether to use GPU. True or False
-    network_size : 'small' # normal or small network to be used?
-    batch_size : 5 # batch size in prediction
-    #End configuration, do stuff
+    network_size : 'small' # normal or small network to be used
+    batch_size : 128 # batch size for CNN, used in prediction
+
+# Post denoising analysis
+Processing:
+  
+  

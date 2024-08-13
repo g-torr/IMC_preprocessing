@@ -1,8 +1,4 @@
 import os
-
-# # IMC-Denoise: a content aware denoising pipeline to enhance imaging mass cytometry
-# It trains for a batch of data, potentially with different sizes
-
 import numpy as np
 import matplotlib.pyplot as plt
 from IMC_Denoise.DeepSNiF_utils.DeepSNiF_DataGenerator import DeepSNiF_DataGenerator, load_training_patches
@@ -10,21 +6,12 @@ from IMC_Denoise.IMC_Denoise_main.DeepSNiF import DeepSNiF
 import os
 import argparse
 import logging
-import logging.handlers
-# Configure file handler with rotation
-file_handler = logging.handlers.RotatingFileHandler('log_denoise.log', maxBytes=1048576, backupCount=5, encoding='utf-8')
-file_handler.setLevel(logging.DEBUG)
-file_formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-file_handler.setFormatter(file_formatter)
+import gc
 # Create logger
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
-
-# Add handlers to logger
-logger.addHandler(file_handler)
 
 import tensorflow as tf
-print("Num GPUs Available: ", len(tf.config.list_physical_devices('GPU')))
+logger.info("Num GPUs Available: "+str( len(tf.config.list_physical_devices('GPU'))))
 
 
 
@@ -79,7 +66,7 @@ def generate_patches(channel_name,Raw_directory,Save_directory,n_neighbours,n_it
     DataGenerator = DeepSNiF_DataGenerator(channel_name = channel_name, n_neighbours = n_neighbours, n_iter = n_iter,window_size = window_size )
     generated_patches = DataGenerator.generate_patches_from_directory(load_directory = Raw_directory)
     if DataGenerator.save_patches(generated_patches, save_directory = Save_directory):
-        print('Data generated successfully!')
+        logger.info('Data generated successfully!')
 
 
 
@@ -104,7 +91,7 @@ def load_and_train(channel_name,deepsnif, Save_directory):
     '''
     saved_training_set = 'training_set_'+channel_name+'.npz'
     train_data = load_training_patches(filename = saved_training_set, save_directory = Save_directory)
-    print('The shape of the loaded training set is ' + str(train_data.shape))
+    logger.info('The shape of the loaded training set is ' + str(train_data.shape))
     train_loss, val_loss = deepsnif.train(train_data)
     return train_loss, val_loss
 
@@ -122,7 +109,7 @@ def main_train(config):
     weights_path = os.path.join(config['IMC_Denoise']['Save_directory'],config['IMC_Denoise']['weights_folder'])
     channels_to_exclude = config['IMC_Denoise']['channels_to_exclude'].split(',')# convert csv field into list
     if not os.path.exists(weights_path):
-        os.mkdir(weights_path)
+        os.makedirs(weights_path)
     # Load one acquisition directory
     acquisition_dirs = [d for d in os.listdir(Raw_directory) if os.path.isdir(os.path.join(Raw_directory, d))]
     if acquisition_dirs:
@@ -171,5 +158,6 @@ def main_train(config):
             np.save(os.path.join(Save_directory,'trained_weights','loss_tv_'+channel_name+'npy'),[train_loss, val_loss])
             del deepsnif
             tf.keras.backend.clear_session() #to free up memory
+            _ = gc.collect()
 
 
