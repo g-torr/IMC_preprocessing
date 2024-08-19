@@ -1,5 +1,5 @@
 # Download first the data from Leor table at this link https://docs.google.com/spreadsheets/d/13Rjea01_QWdzY3qO1X_vcsOsW0rCCQawIiMl_EVrVYg/edit?usp=sharing
 #indicate below the path to where you store it
-metadata : '../../IMC_data/ExtraDocs/imc_metadata.xlsx'
+metadata : '../../IMC_data/ExtraDocs/tnbc_dataset.xlsx'
 #Then use the IMC batches files provided by Maddy with the staining date
-batch: '../../IMC_data/ExtraDocs/files/from_Maddy/IMC batches.xlsx'
+batch: '../../IMC_data/ExtraDocs/from_Maddy/IMC batches.xlsx'

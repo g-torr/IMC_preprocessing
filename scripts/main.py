@@ -16,7 +16,7 @@ def main():
     if not os.path.isfile(config_file['biosamples_file']):
         #if the file containing the processed sample metadata is not found, create it
         config_metadata = load_config('configs/batch_metadata.yaml')
-        format_sample_metadata(config_file)
+        format_sample_metadata(config_generic=config_file,config_metadata=config_metadata)
     ##----From mcd to tiff-------
     if config_file['extraction']!='no':
         import imc_preprocessing.extraction as extraction

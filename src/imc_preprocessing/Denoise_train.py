@@ -94,6 +94,29 @@ def load_and_train(channel_name,deepsnif, Save_directory):
     logger.info('The shape of the loaded training set is ' + str(train_data.shape))
     train_loss, val_loss = deepsnif.train(train_data)
     return train_loss, val_loss
+def process_channel(channel_name, params, Raw_directory, Save_directory, weights_path):
+    weights_name = f"weights_{channel_name}.keras"
+
+    generate_patches(channel_name,Raw_directory=Raw_directory,
+                    Save_directory=Save_directory,n_neighbours=params['n_neighbours'],
+                    n_iter = params['n_iter'] ,window_size = params['window_size'] )
+    deepsnif = DeepSNiF(train_epoches = params['train_epoches'], 
+                    train_learning_rate = float(params['train_learning_rate']),
+                    train_batch_size = params['train_batch_size'],
+                    mask_perc_pix = float(params['pixel_mask_percent']),
+                    val_perc = float(params['val_set_percent']),
+                    loss_func = params['loss_function'],
+                    weights_name = weights_name,
+                    loss_name = params['loss_name'],
+                    weights_dir = weights_path, 
+                    is_load_weights = params['is_load_weights'],
+                    lambda_HF = float(params['lambda_HF']),
+                    network_size = params['network_size'])
+
+    train_loss, val_loss = load_and_train(channel_name,deepsnif = deepsnif, Save_directory =  Save_directory)
+    np.save(os.path.join(Save_directory,'trained_weights','loss_tv_'+channel_name+'npy'),[train_loss, val_loss])
+    del deepsnif
+    gc.collect()
 
 def main_train(config):
     """
@@ -136,27 +159,7 @@ def main_train(config):
     for channel_name in channel_list:
         if channel_name not in markers_already_processed:
             # Assuming foo.py is in the same directory as this script
-            weights_name = "weights_"+channel_name+".keras"
-
-            generate_patches(channel_name,Raw_directory=Raw_directory,
-                            Save_directory=Save_directory,n_neighbours=params['n_neighbours'],
-                            n_iter = params['n_iter'] ,window_size = params['window_size'] )
-            deepsnif = DeepSNiF(train_epoches = params['train_epoches'], 
-                            train_learning_rate = float(params['train_learning_rate']),
-                            train_batch_size = params['train_batch_size'],
-                            mask_perc_pix = float(params['pixel_mask_percent']),
-                            val_perc = float(params['val_set_percent']),
-                            loss_func = params['loss_function'],
-                            weights_name = weights_name,
-                            loss_name = params['loss_name'],
-                            weights_dir = weights_path, 
-                            is_load_weights = params['is_load_weights'],
-                            lambda_HF = float(params['lambda_HF'],
-                            network_size = params['network_size']))
-
-            train_loss, val_loss = load_and_train(channel_name,deepsnif = deepsnif, Save_directory =  Save_directory)
-            np.save(os.path.join(Save_directory,'trained_weights','loss_tv_'+channel_name+'npy'),[train_loss, val_loss])
-            del deepsnif
+            process_channel(channel_name, params, Raw_directory, Save_directory, weights_path)
             tf.keras.backend.clear_session() #to free up memory
             _ = gc.collect()
 

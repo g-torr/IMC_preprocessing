@@ -97,10 +97,10 @@ def mcd_2_ome_tiff(config):
     acquisition_metadata = pd.concat(acquisition_metadatas, copy=False)
     acquisition_metadata.to_csv(path0 +"/acquisition_metadata.csv",mode = 'w')
 
-def ome_tiff_2_tiff(root_data_folder,tiff_folder_name_split,tiff_folder_name_combined):
+def ome_tiff_2_tiff(root_data_folder,tiff_folder_name_split,tiff_folder_name_combined,biosample_path):
     '''Extracts and saves the tiff files in appropriate folders. It also correct the names whenever appropriate'''
     tqdm.pandas()
-    path0, code_2_Leap, path_tb,  metadata, panel = find_and_name_ome_tiff(root_data_folder)
+    path0, code_2_Leap, path_tb,  metadata, panel = find_and_name_ome_tiff(root_data_folder,biosample_path)
 
     for _,file_row in tqdm(path_tb.iterrows()):
         #old_name = row['AcSession']+'_'+str(row['id'])
@@ -126,6 +126,9 @@ def ome_tiff_2_tiff(root_data_folder,tiff_folder_name_split,tiff_folder_name_com
             if Leap_ID == 'Leap009_010_011':
                 leap_9_10_11_mapper = {'19005858':'LEAP009','19005859':'LEAP011','19005860':'LEAP010'}#the sample id in the description is wrong
                 Leap_ID = leap_9_10_11_mapper[code].capitalize()
+                if str(row['id']) == '7':
+                    # this is a repeated acquisition, skip it
+                    continue
             else:
                 if re.match("^\d{8}$",code):
                     #it is a 8 digits, looks like the code we want to use from biobank
@@ -184,18 +187,17 @@ def ome_tiff_2_tiff(root_data_folder,tiff_folder_name_split,tiff_folder_name_com
             )
         panel.to_csv(path0+'/panel.csv')
 
-def find_and_name_ome_tiff(root_data_folder):
+def find_and_name_ome_tiff(root_data_folder,biosample_path):
     path0 = os.path.join(root_data_folder,'IMC_data')
-    biobank = pd.read_excel(os.path.join(path0,'ExtraDocs','biobank list.xlsx'))
-    biobank.rename({'BIOBANK ID':'BIOBANK_ID'},inplace=True,axis = 1)
-    biobank.dropna(axis = 0,inplace=True)
-    biobank['code'] = biobank.BIOBANK_ID.str.split('-').str[0]
-    code_2_Leap = biobank[['LEAP ID','code']].drop_duplicates().set_index('code')
+    biobank = pd.read_csv(biosample_path)
+    #biobank.dropna(axis = 0,inplace=True)
+    biobank['code'] = biobank['BIOBANK_ID_num']
+    code_2_Leap = biobank[['LEAP_ID','code']].drop_duplicates().set_index('code')
 
     ome_tiff_paths = list(Path(path0).rglob("acquisition/[!.]*.ome.tiff"))
     path_tb = pd.DataFrame(ome_tiff_paths,columns = ['path'])
     path_tb['filename'] = path_tb['path'].apply(lambda x:x.name).str.rstrip('_ac.ome.tiff')
-    path_tb['root'] = get_root(root_data_folder, path_tb)#return the path where the acquisition folder is, this is to match metadata['root'] below
+    path_tb['root'] = get_root(path0, path_tb)#return the path where the acquisition folder is, this is to match metadata['root'] below
     metadata = pd.read_csv(path0+'/acquisition_metadata.csv')
     #make root the path to the folder containing the mcd file
     metadata ['root'] = metadata.source_path.str.lstrip(  os.path.join(os.getcwd(),root_data_folder,'IMC_data')).str.split('/').str[0]
@@ -207,9 +209,9 @@ def find_and_name_ome_tiff(root_data_folder):
     panel.loc[panel['channel_name'] == 'Pt195','marker']='Carboplatin'
     return path0,code_2_Leap,path_tb,metadata,panel
 
-def get_root(root_data_folder, path_tb):
+def get_root(path0, path_tb):
     '''Remove the trailing path and return  the folder where "acquisition" folder is'''
-    return path_tb.path.astype(str).str.lstrip(os.path.join(root_data_folder,'IMC_data')).str.split('/acquisition/').str[0]
+    return path_tb.path.astype(str).str.lstrip(path0).str.split('/acquisition/').str[0]
 
 #rename files and correct according to Leor table
 def rename_leap_id(root_data_folder,tiff_folder_name_split):
@@ -275,7 +277,7 @@ def main(config):
             mcd_2_ome_tiff(config)
         elif(config['extraction']=='all') or (config['extraction']=='ome_tiff_2_tiff'):
             logger.info('Extracting tiff from ome-tiff ...')
-            ome_tiff_2_tiff(root_data_folder,tiff_folder_name_split,tiff_folder_name_combined)
+            ome_tiff_2_tiff(root_data_folder,tiff_folder_name_split,tiff_folder_name_combined,biosample_path = config['biosamples_file'])
 
         elif(config['extraction']=='all') or (config['extraction']=='rename_leap_id'):
             logger.info('Renaming leap id ...')

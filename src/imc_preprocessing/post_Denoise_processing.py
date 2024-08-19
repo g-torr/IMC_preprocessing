@@ -15,23 +15,28 @@ from pathlib import Path
 import tifffile as tp
 def process_Carboplatin(config):
     '''Images from core are set with carboplatin =0. Moreover, the 99 percentile of the core images is used to normalise the images'''
-    '/Carboplatin.tiff'
+    #This assumes Carboplatin is not processed by IMC_Denoise. 
     input_path = os.path.join( config['root_data_folder'],config['tiff_folder_name_split'])
-    biosamples_path  = os.path.join(config['root_data_folder'],config['biosamples_file'])
+    biosamples_path  = os.path.join(config['biosamples_file'])
     file_list = file_list_from_img_folder(input_path,biosamples_path=biosamples_path)
-    file_list['path'] = file_list['path']+'/Carboplatin.tiff'
+    file_list['path'] = file_list.path.map(lambda x:os.path.join(x,'Carboplatin.tiff'))
     #getting the 95% of core images. Also saving Carboplatin to 0
     data = []
     img_core = []
-    # identify the samples that we know should not have carboplatin to learn the baseline level of that marker in negative samples. 
-    #From exploration I can see that even in Core, tissue contains some Platinum and I can see the shape of the tissue.
-    samples_with_carboplatin = (file_list['SAMPLE_TYPE_(CORE/RESECTION)']=='RESECTION')*(file_list['NACT_treatment _group'].str.contains('carbo').fillna(False))
+    # Exploring the images,  I can see that even in Core, tissue contains some Platinum and the distribution matches the shape of the tissue
+    # I want to learn the baseline level of Carboplatin in tissues. For that,
+    # I identify the samples that we know should not have carboplatin to learn the baseline level of that marker in negative samples. 
+
+    samples_with_carboplatin = (file_list['SAMPLE_TYPE']=='RESECTION')*(file_list['NACT_treatment _group'].str.contains('carbo').fillna(False)).astype(bool)
     for file in file_list[~samples_with_carboplatin].path:
         try:
             img = skimage.io.imread(file)
             img_core+=[img]
             data+=[np.quantile(img,q = 0.95)]
-            output_file = file.replace('split_channels_nohpf','Img_Denoised/processed/')
+            relative_path = Path(file).relative_to(Path(file).parents[1])# take the acquisition folder and carboplatin.tiff file 
+            output_file = config['output_directory']/relative_path # join the line above with the output directory, to create the new path
+            output_file.mkdir(parents=True, exist_ok=True)
+            #output_file = file.replace('split_channels_nohpf','Img_Denoised/processed/')
             tp.imwrite(output_file,np.zeros(img.shape).astype('float32'))
         except FileNotFoundError:
             print(file,'not found')
@@ -49,7 +54,7 @@ def process_Carboplatin(config):
         data_res +=[q]
         
     max_data_res = max(data_res)
-    for i, (img,file) in enumerate(zip(img_res,file_list[file_list['SAMPLE_TYPE_(CORE/RESECTION)']=='RESECTION'].path)):
+    for i, (img,file) in enumerate(zip(img_res,file_list[file_list['SAMPLE_TYPE']=='RESECTION'].path)):
         img_float = skimage.exposure.rescale_intensity(img,in_range=(low_thr,max_data_res))
         q = data_res[i]
         if q>1.2:
@@ -58,7 +63,9 @@ def process_Carboplatin(config):
         else:
             # in this case, exposure.equalize_hist tends to overcorrect dark region overamplifying noise. Use a more noise 
             img = skimage.exposure.rescale_intensity(skimage.exposure.equalize_adapthist(img_float))
-        output_file = file.replace('split_channels_nohpf','Img_Denoised/processed/')
+        relative_path = Path(file).relative_to(Path(file).parents[1])# take the acquisition folder and carboplatin.tiff file 
+        output_file = config['output_directory']/relative_path # join the line above with the output directory, to create the new path
+        output_file.mkdir(parents=True, exist_ok=True)
         tp.imwrite(output_file,img)
     #copy Carboplatin also to 'Img_Denoised/non_prepocessed and 'Img_Denoised/rescaled
     for file in file_list.path:
@@ -94,7 +101,7 @@ def process_all_channels_but_Cb(file_list,base_dir,config):
 
     #file_list = file_list[file_list.Keep == 'y']
     #process every channel independently, group images by staining date and normalise by quantile
-    groupkey = 'Stain'
+    groupkey = 'Stain_group'
     all = {}
     
     for k, indx in file_list.groupby(groupkey).groups.items():
@@ -118,7 +125,7 @@ def process_all_channels_but_Cb(file_list,base_dir,config):
         all[k] = thresholds 
 
     #now convert_temp files so that the sum of markers in a Leap is always the same
-    preprocessed_file_list = file_list_from_img_folder('/home/giuseppe/devices/Delta_Tissue/IMC/Img_Denoised/rescaled/',os.path.join(config['root_data_folder'],config['biosamples_file']))
+    preprocessed_file_list = file_list_from_img_folder('/home/giuseppe/devices/Delta_Tissue/IMC/Img_Denoised/rescaled/',os.path.join(config['biosamples_file']))
     all_row = {}
     for k, indx in preprocessed_file_list.groupby('Leap_ID').groups.items():
         thresholds = []
@@ -153,14 +160,19 @@ def process_all_channels_but_Cb(file_list,base_dir,config):
                 shutil.copy(path_inp,path_out)
 
 
-def file_list_from_img_folder(base_dir,biosamples_path):
-    '''Create a table of path to acquisition folder, and the metadata related to that sample'''
-    file_list = pd.Series(glob.glob(os.path.join(base_dir,'Leap*')))
+def file_list_from_img_folder(img_folder,biosamples_path):
+    '''
+    Create a table of path to acquisition folder, and the metadata related to that sample.
+    img_folder is the path to the folder containing all acquisitions, one in each folder.
+    i.e.
+    |img_folder|
+    |--------|Leap001_8
+    |--------|Leap001_8|DNA1.tiff'''
+    file_list = pd.Series(glob.glob(os.path.join(img_folder,'Leap*')))
     file_list = pd.DataFrame(file_list,columns = ['path'])
     file_list['acquisition_ID'] = file_list.path.str.split('/').str[-1]
     file_list['Leap_ID'] = file_list.acquisition_ID.str.split('_',n = 1).str[0].str.upper()
-    file_list['Leap_ID'] = file_list['Leap_ID'].str[:7]#leap_ID should be Leap123, anything more is stripped
-    #biosamples_path = '/home/giuseppe/devices/Delta_Tissue/IMC/IMC_data/ExtraDocs/processed_response_RCB.csv'
+    file_list['Leap_ID'] = file_list['Leap_ID'].str[:7]#leap_ID should be Leap123, anything more is stripped. Consider that there are cases like Leap088a
     biosamples =pd.read_csv(biosamples_path)
     file_list = file_list.merge(biosamples,left_on='Leap_ID',right_on= 'LEAP_ID').drop(['LEAP_ID'],axis = 1)#add metadata on patient
     return file_list
@@ -188,11 +200,11 @@ def loc_contrast_enhancement(base_dir):
         copy_to = copy_from.replace('non_preprocessed',new_directory)
         shutil.copy(copy_from,copy_to)
 
-def main():
-    base_dir = '/home/giuseppe/devices/Delta_Tissue/IMC/Img_Denoised/non_preprocessed/'
-    file_list = file_list_from_img_folder(base_dir)
-    process_all_channels_but_Cb(file_list,base_dir)
+def main(config):
+    input_dir = config['IMC_Denoise']['output_directory']
+    file_list = file_list_from_img_folder(img_folder=input_dir,biosamples_path=config['biosamples_file'])
+    process_all_channels_but_Cb(file_list,input_dir)
     process_Carboplatin()
-    loc_contrast_enhancement(base_dir)
+    loc_contrast_enhancement(input_dir)
 if __name__=='__main__':
     main()
