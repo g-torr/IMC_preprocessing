@@ -133,7 +133,7 @@ def ome_tiff_2_tiff(root_data_folder,tiff_folder_name_split,tiff_folder_name_com
                 if re.match("^\d{8}$",code):
                     #it is a 8 digits, looks like the code we want to use from biobank
                     try:
-                        Leap_ID = code_2_Leap.loc[code]['LEAP ID'].capitalize()
+                        Leap_ID = code_2_Leap[code].capitalize()
                     except KeyError:
                         logger.warning('Potential problem, skipping')
                         pass
@@ -191,8 +191,8 @@ def find_and_name_ome_tiff(root_data_folder,biosample_path):
     path0 = os.path.join(root_data_folder,'IMC_data')
     biobank = pd.read_csv(biosample_path)
     #biobank.dropna(axis = 0,inplace=True)
-    biobank['code'] = biobank['BIOBANK_ID_num']
-    code_2_Leap = biobank[['LEAP_ID','code']].drop_duplicates().set_index('code')
+    biobank['code'] = biobank['BIOBANK_ID_num'].astype(str)
+    code_2_Leap = biobank[['LEAP_ID','code']].drop_duplicates().set_index('code')['LEAP_ID'].to_dict()
 
     ome_tiff_paths = list(Path(path0).rglob("acquisition/[!.]*.ome.tiff"))
     path_tb = pd.DataFrame(ome_tiff_paths,columns = ['path'])
