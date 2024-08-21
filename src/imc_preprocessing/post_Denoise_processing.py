@@ -75,17 +75,7 @@ def process_Carboplatin(config):
         copy_to = file.replace('split_channels_nohpf','Img_Denoised/rescaled/')
         shutil.copy(copy_from,copy_to)
 def process_all_channels_but_Cb(file_list,base_dir,config):
-    def extract_quantile_from_img(f):
-        '''take quantile per fov. Use log1p trasform'''
-        img = skimage.io.imread(f)
-        img = np.log1p(img[img>0])
-        q = np.quantile(img,0.95)
-        return q
-    def load_and_rescale_by_quantile(f,q):
-        img = skimage.io.imread(f)
-        img = skimage.exposure.adjust_log(img)
-        img = skimage.exposure.rescale_intensity(img, in_range=(0,q))
-        return img    
+    '''This function computes image normalisatio and outputs in rescaled and processed folders.'''
     def acq_Id_from_path(path):
         return path.split('/')[-2]
     file_pattern = '*.tiff'  # Change to '*.tif' if your files have the '.tif' extension
@@ -100,34 +90,22 @@ def process_all_channels_but_Cb(file_list,base_dir,config):
     marker_list_row_norm = list(set(marker_list).difference(marker_left_out))
 
     #file_list = file_list[file_list.Keep == 'y']
-    #process every channel independently, group images by staining date and normalise by quantile
-    groupkey = 'Stain_group'
-    all = {}
-    
-    for k, indx in file_list.groupby(groupkey).groups.items():
-        thresholds = []
-        for marker in marker_list_stain:
-            paths = file_list.loc[indx].path+'/'+marker+'.tiff'
-            paths = paths.to_list()
-            quantile = np.median(skimage.io.ImageCollection(paths,load_func=extract_quantile_from_img))
-            #normalise each image according to the quantile
-            
-            imgs = skimage.io.ImageCollection(paths,load_func=lambda f:load_and_rescale_by_quantile(f,quantile))
-            for path_inp,img in zip(imgs.files,imgs):
-                path_out = path_inp.replace('non_preprocessed','rescaled')#is the name of the file where to save
-                Path(os.path.dirname(path_out)).mkdir(parents=True, exist_ok=True)#creates the folder if missing
-                i = path_out.rfind('.')
-                #path_out =  path_out[:i]+'_temp'+path_out[i:]#add _temp to the name of the file
-                if not Path(path_out).is_file():
-                    #if file does not exist, save it, otherwise skip
-                    skimage.io.imsave(path_out,img)
-            thresholds.append(quantile)
-        all[k] = thresholds 
+    #process every channel independently, group images by staining date and normalise by quantile in the staining group
+    normalise_images_by_group(file_list, marker_list_stain, groupkey = 'Stain_group') 
 
-    #now convert_temp files so that the sum of markers in a Leap is always the same
-    preprocessed_file_list = file_list_from_img_folder('/home/giuseppe/devices/Delta_Tissue/IMC/Img_Denoised/rescaled/',os.path.join(config['biosamples_file']))
+    ## convert files from previous step so that the sum of markers in a Leap is always the same
+    #process every channel independently, group images by leap and compute the median of the leap per channel.
+    #Final images are such that the sum across markers of the median marker expression in a Leap is 1
+    unit_vector_image_normalisation(marker_list_stain,groupkey = 'Leap_ID', marker_list_row_norm = marker_list_row_norm,config = config )
+
+def unit_vector_image_normalisation(marker_list_stain,groupkey, marker_list_row_norm, config):
+    base_dir = config['IMC_Denoise']['output_directory']
+
+        #first load the images generated in the the previous step
+    preprocessed_file_list = file_list_from_img_folder(base_dir.replace('non_preprocessed','rescaled'),os.path.join(config['biosamples_file']))
+
     all_row = {}
-    for k, indx in preprocessed_file_list.groupby('Leap_ID').groups.items():
+    for k, indx in preprocessed_file_list.groupby(groupkey).groups.items():
         thresholds = []
         #generate thresholds
         for marker in marker_list_row_norm:
@@ -137,19 +115,18 @@ def process_all_channels_but_Cb(file_list,base_dir,config):
             thr = np.median(skimage.io.ImageCollection(paths,load_func=lambda x:np.median(skimage.io.imread(x))))
             thresholds.append(thr)
         thr = np.sum(thresholds)
+        #take the sum across channels and use it to normalise each leap
         all_row[k] = thresholds
     
         for marker in marker_list_row_norm:
-            paths = preprocessed_file_list.loc[indx].path+'/'+marker+'.tiff'
+            paths = os.path.join(preprocessed_file_list.loc[indx].path,marker+'.tiff')
             paths = paths.to_list()
             imgs = skimage.io.ImageCollection(paths)
             for path_inp,img in zip(imgs.files,imgs):
                 path_out = path_inp.replace('rescaled','processed')#is the name of the file where to save. Drop the _temp in the name
                 Path(os.path.dirname(path_out)).mkdir(parents=True, exist_ok=True)#creates the folder if missing
-                if True:#not Path(path_out).is_file():
-                    #if file does not exist, save it, otherwise skip
-                    img_processed = skimage.exposure.rescale_intensity(img/thr,in_range=(0,1/thr))
-                    skimage.io.imsave(path_out,img_processed)
+                img_processed = skimage.exposure.rescale_intensity(img/thr,in_range=(0,1/thr))
+                skimage.io.imsave(path_out,img_processed)
         for marker in set(marker_list_stain).difference(marker_list_row_norm):
             #process the DNAs
             #just copy the files
@@ -159,6 +136,33 @@ def process_all_channels_but_Cb(file_list,base_dir,config):
                 path_out = path_inp.replace('rescaled','processed')#is the name of the file where to save. Drop the _temp in the name
                 shutil.copy(path_inp,path_out)
 
+def normalise_images_by_group(file_list, marker_list_stain, groupkey):
+    def extract_quantile_from_img(f):
+        '''take quantile per fov. Use log1p trasform'''
+        img = skimage.io.imread(f)
+        img = np.log1p(img[img>0])
+        q = np.quantile(img,0.95)
+        return q
+    def load_and_rescale_by_quantile(f,q):
+        img = skimage.io.imread(f)
+        img = skimage.exposure.adjust_log(img)
+        img = skimage.exposure.rescale_intensity(img, in_range=(0,q))
+        return img    
+
+    for indx in file_list.groupby(groupkey).groups.values():
+        
+        for marker in marker_list_stain:
+            paths = file_list.loc[indx].path+'/'+marker+'.tiff'
+            paths = paths.to_list()
+            quantile = np.median(skimage.io.ImageCollection(paths,load_func=extract_quantile_from_img))
+            #normalise each image according to the quantile
+            
+            imgs = skimage.io.ImageCollection(paths,load_func=lambda f:load_and_rescale_by_quantile(f,quantile))
+            for path_inp,img in zip(imgs.files,imgs):
+                path_out = path_inp.replace('non_preprocessed','rescaled')#it is the name of the folder where to save
+                Path(os.path.dirname(path_out)).mkdir(parents=True, exist_ok=True)#creates the folder if missing
+                skimage.io.imsave(path_out,img)
+        
 
 def file_list_from_img_folder(img_folder,biosamples_path):
     '''

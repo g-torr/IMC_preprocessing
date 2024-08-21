@@ -5,7 +5,7 @@ import logging
 import os
 import logging.handlers
 
-logging.basicConfig(filename='logging.log', level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logging.basicConfig(filename='logging.log', level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
 
 def main():

@@ -2,14 +2,10 @@ import numpy as np
 import os
 from os import PathLike
 from pathlib import Path
-from readimc import MCDFile, TXTFile
 from collections import defaultdict
 import pandas as pd
 from typing import Any, Dict, Generator, List, Optional, Sequence, Tuple, Union
 from tqdm import tqdm
-from readimc.data.acquisition import Acquisition, AcquisitionBase
-from readimc.data.panorama import Panorama
-from readimc.data.slide import Slide
 import shutil
 import re
 import argparse
@@ -135,7 +131,7 @@ def ome_tiff_2_tiff(root_data_folder,tiff_folder_name_split,tiff_folder_name_com
                     try:
                         Leap_ID = code_2_Leap[code].capitalize()
                     except KeyError:
-                        logger.warning('Potential problem, skipping')
+                        logger.warning('Potential problem in Leap'+Leap_ID+'. Skipping generating tiff file for row with description '+description )
                         pass
         if Leap_ID == 'Leap015_016':
             if 'TOP' in description:
@@ -275,11 +271,11 @@ def main(config):
         if (config['extraction']=='all') or (config['extraction']=='mcd_2_ome_tiff'):
             logger.info('Extracting ome-tiff from mcd ...')
             mcd_2_ome_tiff(config)
-        elif(config['extraction']=='all') or (config['extraction']=='ome_tiff_2_tiff'):
+        if(config['extraction']=='all') or (config['extraction']=='ome_tiff_2_tiff'):
             logger.info('Extracting tiff from ome-tiff ...')
             ome_tiff_2_tiff(root_data_folder,tiff_folder_name_split,tiff_folder_name_combined,biosample_path = config['biosamples_file'])
 
-        elif(config['extraction']=='all') or (config['extraction']=='rename_leap_id'):
+        if(config['extraction']=='all') or (config['extraction']=='rename_leap_id'):
             logger.info('Renaming leap id ...')
             rename_leap_id(root_data_folder,tiff_folder_name_split)# it does not correct for the files in the combined tiff folder
     else:
