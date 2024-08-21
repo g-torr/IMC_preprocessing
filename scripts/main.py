@@ -1,5 +1,5 @@
 from  imc_preprocessing.utils import load_config,format_sample_metadata
-from imc_preprocessing import Denoise_train, Denoise_predict
+from imc_preprocessing import Denoise_train, Denoise_predict,post_Denoise_processing
 import argparse
 import logging
 import os
@@ -30,6 +30,7 @@ def main():
     else:
         Denoise_train.main_train(config_file)
         Denoise_predict.main(config_file)
+    post_Denoise_processing.main(config_file)
 # Entry point for the script, parses arguments and loads configuration
 if __name__ == '__main__':
     main()
