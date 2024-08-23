@@ -5,7 +5,7 @@ extraction: 'no' #choose between no, all, mcd_2_ome_tiff,ome_tiff_2_tiff,rename_
 #folder name where tiff files are saved. No skips the extractions
 tiff_folder_name_split: 'split_channels_nohpf' #folder where tiff are split channel by channel. Data are saved in root_data_folder/tiff_folder_name_split
 tiff_folder_name_combined: 'combined_tiff' #folder containing a multichannel tiff per fov
-biosamples_file : '../processed_files/processed_response.csv' # file containing the metadata for each Leap id.
+biosamples_file : '../processed_files/processed_response.csv' # output path to where file containing the metadata for each Leap id is created.
 # IMC denoise parameters
 IMC_Denoise:
   skip : False #True ignore the IMC_Denoise step
@@ -37,5 +37,5 @@ IMC_Denoise:
 
 # Post denoising analysis
 Processing:
-  
-  
+  mode: 'CLAHE' # choose between CLAHE, unit, no. 
+  output_directory : '../../Img_Denoised/preprocessed' #path to where processed images are saved, insert absolute or relative path. Relative path refers from the folder where the script `main.py` is run

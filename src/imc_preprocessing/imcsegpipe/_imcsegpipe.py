@@ -88,7 +88,8 @@ def extract_mcd_file(
                 )
                 acquisition_origin = "mcd"
                 acquisition_is_valid = _extract_acquisition(
-                    f_mcd, acquisition, acquisition_img_file, acquisition_channels_file
+                    f_mcd, acquisition, acquisition_img_file, acquisition_channels_file,
+                     strict=False
                 )
                 if not acquisition_is_valid and txt_files is not None:
                     acquisition_txt_files = [

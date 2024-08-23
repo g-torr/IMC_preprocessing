@@ -3,7 +3,9 @@ import pathlib
 import numpy as np
 import pandas as pd
 import datetime
-
+from pathlib import Path
+import logging
+logger = logging.getLogger(__name__)
 def load_config(filename):
 	"""
 	Loads configuration from a YAML file.
@@ -16,6 +18,18 @@ def load_config(filename):
 	"""
 	with open(filename, 'r') as f:
 		return yaml.safe_load(f)
+	
+def check_paths(config):
+	'''Check whether paths are valid'''
+	mcd_folder_path = Path(config['root_data_folder'])/Path(config['mcd_data_folder'])
+	if not mcd_folder_path.is_dir():
+		logging.WARNING(mcd_folder_path +' does not exists')
+	if config['extraction'] == 'no':
+		# if titiff folder is not generated, it must exist before.
+		tiff_folder_path = Path(config['root_data_folder'])/Path('tiff_folder_name_split')
+		if not tiff_folder_path.is_dir():
+			raise ValueError(tiff_folder_path +' does not exists')
+
 def format_sample_metadata(config_generic,config_metadata):
 	'''
 	Generate a file containing the metadata in a machine readable format. It aggregates the metadata about response and the staining information

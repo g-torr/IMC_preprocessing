@@ -1,15 +1,11 @@
 import numpy as np
 import skimage
 import skimage.io
-import seaborn as sns
 import matplotlib.pyplot as plt
 import glob
 import pandas as pd
 import shutil
 import os
-from skimage import (
-    data, restoration, util
-)
 from pathlib import Path
 
 import tifffile as tp
@@ -34,7 +30,7 @@ def process_Carboplatin(config):
             img_core+=[img]
             data+=[np.quantile(img,q = 0.95)]
             relative_path = Path(file).relative_to(Path(file).parents[1])# take the acquisition folder and carboplatin.tiff file 
-            output_file = config['output_directory']/relative_path # join the line above with the output directory, to create the new path
+            output_file = config['Processing']['output_directory']/relative_path # join the line above with the output directory, to create the new path
             output_file.mkdir(parents=True, exist_ok=True)
             #output_file = file.replace('split_channels_nohpf','Img_Denoised/processed/')
             tp.imwrite(output_file,np.zeros(img.shape).astype('float32'))
@@ -64,20 +60,13 @@ def process_Carboplatin(config):
             # in this case, exposure.equalize_hist tends to overcorrect dark region overamplifying noise. Use a more noise 
             img = skimage.exposure.rescale_intensity(skimage.exposure.equalize_adapthist(img_float))
         relative_path = Path(file).relative_to(Path(file).parents[1])# take the acquisition folder and carboplatin.tiff file 
-        output_file = config['output_directory']/relative_path # join the line above with the output directory, to create the new path
+        output_file = config['Processing']['output_directory']/relative_path # join the line above with the output directory, to create the new path
         output_file.mkdir(parents=True, exist_ok=True)
         tp.imwrite(output_file,img)
-    #copy Carboplatin also to 'Img_Denoised/non_prepocessed and 'Img_Denoised/rescaled
-    for file in file_list.path:
-        copy_from = file.replace('split_channels_nohpf','Img_Denoised/processed/')
-        copy_to = file.replace('split_channels_nohpf','Img_Denoised/non_preprocessed/')
-        shutil.copy(copy_from,copy_to)
-        copy_to = file.replace('split_channels_nohpf','Img_Denoised/rescaled/')
-        shutil.copy(copy_from,copy_to)
+
 def process_all_channels_but_Cb(file_list,base_dir,config):
     '''This function computes image normalisatio and outputs in rescaled and processed folders.'''
-    def acq_Id_from_path(path):
-        return path.split('/')[-2]
+
     file_pattern = '*.tiff'  # Change to '*.tif' if your files have the '.tif' extension
     # Create a pattern to search for subdirectories with names starting with 'Leap'
     sub_dir_pattern = os.path.join(base_dir, 'Leap*')
@@ -89,54 +78,20 @@ def process_all_channels_but_Cb(file_list,base_dir,config):
     marker_list_stain = list(set(marker_list).difference({'Carboplatin'}))
     marker_list_row_norm = list(set(marker_list).difference(marker_left_out))
 
+    output_directory = config['Processing']['output_directory']
+    output_directory_name = Path(output_directory).parts[-1]# take the name of the folder that contains Leapxyz_a, e.g. 'processed'
+    scaled_output_directory = output_directory.replace(output_directory_name,'scaled')
     #file_list = file_list[file_list.Keep == 'y']
     #process every channel independently, group images by staining date and normalise by quantile in the staining group
-    normalise_images_by_group(file_list, marker_list_stain, groupkey = 'Stain_group') 
+    normalise_images_by_group(file_list, marker_list_stain, groupkey = 'Stain_group',output_path= scaled_output_directory ) 
 
     ## convert files from previous step so that the sum of markers in a Leap is always the same
     #process every channel independently, group images by leap and compute the median of the leap per channel.
     #Final images are such that the sum across markers of the median marker expression in a Leap is 1
-    unit_vector_image_normalisation(marker_list_stain,groupkey = 'Leap_ID', marker_list_row_norm = marker_list_row_norm,config = config )
+    unit_vector_image_normalisation(marker_list_stain,groupkey = 'Leap_ID', marker_list_row_norm = marker_list_row_norm,config = config, input_dir = scaled_output_directory )
 
-def unit_vector_image_normalisation(marker_list_stain,groupkey, marker_list_row_norm, config):
-    base_dir = config['IMC_Denoise']['output_directory']
-
-        #first load the images generated in the the previous step
-    preprocessed_file_list = file_list_from_img_folder(base_dir.replace('non_preprocessed','rescaled'),os.path.join(config['biosamples_file']))
-
-    all_row = {}
-    for k, indx in preprocessed_file_list.groupby(groupkey).groups.items():
-        thresholds = []
-        #generate thresholds
-        for marker in marker_list_row_norm:
-            paths = preprocessed_file_list.loc[indx].path+'/'+marker+'.tiff'
-            paths = paths.to_list()
-            #compute the median per ROI and then the median of all ROIs in a Leap
-            thr = np.median(skimage.io.ImageCollection(paths,load_func=lambda x:np.median(skimage.io.imread(x))))
-            thresholds.append(thr)
-        thr = np.sum(thresholds)
-        #take the sum across channels and use it to normalise each leap
-        all_row[k] = thresholds
-    
-        for marker in marker_list_row_norm:
-            paths = os.path.join(preprocessed_file_list.loc[indx].path,marker+'.tiff')
-            paths = paths.to_list()
-            imgs = skimage.io.ImageCollection(paths)
-            for path_inp,img in zip(imgs.files,imgs):
-                path_out = path_inp.replace('rescaled','processed')#is the name of the file where to save. Drop the _temp in the name
-                Path(os.path.dirname(path_out)).mkdir(parents=True, exist_ok=True)#creates the folder if missing
-                img_processed = skimage.exposure.rescale_intensity(img/thr,in_range=(0,1/thr))
-                skimage.io.imsave(path_out,img_processed)
-        for marker in set(marker_list_stain).difference(marker_list_row_norm):
-            #process the DNAs
-            #just copy the files
-            paths = preprocessed_file_list.loc[indx].path+'/'+marker+'.tiff'
-            paths = paths.to_list()
-            for path_inp in paths:
-                path_out = path_inp.replace('rescaled','processed')#is the name of the file where to save. Drop the _temp in the name
-                shutil.copy(path_inp,path_out)
-
-def normalise_images_by_group(file_list, marker_list_stain, groupkey):
+def normalise_images_by_group(file_list, marker_list_stain, groupkey,output_path):
+    '''Normalise images by taking the 95% per stain group, indipendently for each channel'''
     def extract_quantile_from_img(f):
         '''take quantile per fov. Use log1p trasform'''
         img = skimage.io.imread(f)
@@ -159,10 +114,51 @@ def normalise_images_by_group(file_list, marker_list_stain, groupkey):
             
             imgs = skimage.io.ImageCollection(paths,load_func=lambda f:load_and_rescale_by_quantile(f,quantile))
             for path_inp,img in zip(imgs.files,imgs):
-                path_out = path_inp.replace('non_preprocessed','rescaled')#it is the name of the folder where to save
+                relative_path = Path(path_inp).relative_to(Path(path_inp).parents[1])# take the acquisition folder and tiff file 
+                path_out = os.path.join(output_path,relative_path)  #join output_path with  Leap123_x/channel.tiff
+                #it is the name of the folder where to save
                 Path(os.path.dirname(path_out)).mkdir(parents=True, exist_ok=True)#creates the folder if missing
                 skimage.io.imsave(path_out,img)
         
+
+def unit_vector_image_normalisation(marker_list_stain,groupkey, marker_list_row_norm, config,input_dir):
+
+        #first load the images generated in the the previous step
+    preprocessed_file_list = file_list_from_img_folder(input_dir,os.path.join(config['biosamples_file']))
+
+    all_row = {}
+    for k, indx in preprocessed_file_list.groupby(groupkey).groups.items():
+        thresholds = []
+        #generate thresholds
+        for marker in marker_list_row_norm:
+            paths = preprocessed_file_list.loc[indx].path+'/'+marker+'.tiff'
+            paths = paths.to_list()
+            #compute the median per ROI and then the median of all ROIs in a Leap
+            thr = np.median(skimage.io.ImageCollection(paths,load_func=lambda x:np.median(skimage.io.imread(x))))
+            thresholds.append(thr)
+        thr = np.sum(thresholds)
+        #take the sum across channels and use it to normalise each leap
+        all_row[k] = thresholds
+    
+        for marker in marker_list_row_norm:
+            paths = os.path.join(preprocessed_file_list.loc[indx].path,marker+'.tiff')
+            paths = paths.to_list()
+            imgs = skimage.io.ImageCollection(paths)
+            for path_inp,img in zip(imgs.files,imgs):
+                relative_path = Path(path_inp).relative_to(Path(path_inp).parents[1])# take the acquisition folder and tiff file 
+                path_out = config['Processing']['output_directory']/relative_path # join the line above with the output directory, to create the new path
+                Path(os.path.dirname(path_out)).mkdir(parents=True, exist_ok=True)#creates the folder if missing
+                img_processed = skimage.exposure.rescale_intensity(img/thr,in_range=(0,1/thr))
+                skimage.io.imsave(path_out,img_processed)
+        for marker in set(marker_list_stain).difference(marker_list_row_norm):
+            #process the DNAs
+            #just copy the files
+            paths = preprocessed_file_list.loc[indx].path+'/'+marker+'.tiff'
+            paths = paths.to_list()
+            for path_inp in paths:
+                relative_path = Path(path_inp).relative_to(Path(path_inp).parents[1])# take the acquisition folder and tiff file 
+                path_out = config['Processing']['output_directory']/relative_path # join the line above with the output directory, to create the new path
+                shutil.copy(path_inp,path_out)
 
 def file_list_from_img_folder(img_folder,biosamples_path):
     '''
@@ -180,35 +176,45 @@ def file_list_from_img_folder(img_folder,biosamples_path):
     biosamples =pd.read_csv(biosamples_path)
     file_list = file_list.merge(biosamples,left_on='Leap_ID',right_on= 'LEAP_ID').drop(['LEAP_ID'],axis = 1)#add metadata on patient
     return file_list
-def loc_contrast_enhancement(base_dir):
+def loc_contrast_enhancement(config):
     def load_and_enhance(name):
         img = skimage.io.imread(name)
         p2, p98 = np.percentile(img, (2, 98))
         img = skimage.exposure.rescale_intensity(img,in_range=(p2,p98), out_range = (0,.999))#added out_range to something <1 because otherwise rounding >1
         img = skimage.exposure.equalize_adapthist(img)
         return img
-    new_directory = 'contrast_adj'
+    input_dir = config['IMC_Denoise']['output_directory']
+    output_dir = config['Processing']['output_directory']
+
     file_pattern = '*.tiff'  # Change to '*.tif' if your files have the '.tif' extension
+    old_directory = Path(input_dir).parts[-1]# take the name of the folder that contains Leapxyz_a, e.g. 'non_preprocessed'
     # Create a pattern to search for subdirectories with names starting with 'Leap'
-    sub_dir_pattern = os.path.join(base_dir, 'Leap*')
-    paths = glob.glob(os.path.join(sub_dir_pattern, file_pattern), recursive=True)
+    sub_dir_pattern = os.path.join(input_dir, 'Leap*')# Leap folders that are in the denoised image folder
+    paths = glob.glob(os.path.join(sub_dir_pattern, file_pattern), recursive=True)# iterator over all *.tiff images 
     imgs = skimage.io.ImageCollection(paths,load_func=load_and_enhance)
-    for origin_path,img_processed in zip(imgs.files,imgs):
-        path_out = origin_path.replace('non_preprocessed',new_directory)
+    for path_inp,img_processed in zip(imgs.files,imgs):
+        relative_path = Path(path_inp).relative_to(Path(path_inp).parents[1])# take the acquisition folder and tiff file 
+        path_out = config['Processing']['output_directory']/relative_path # join the line above with the output directory, to create the new path
         Path(os.path.dirname(path_out)).mkdir(parents=True, exist_ok=True)#creates the folder if missing
         skimage.io.imsave(path_out,img_processed)
+    '''
     #copy carboplatin
-    file_list = file_list_from_img_folder(base_dir)
+    file_list = file_list_from_img_folder(input_dir)
     file_list['path'] = file_list['path']+'/Carboplatin.tiff'
     for copy_from in file_list.path:
-        copy_to = copy_from.replace('non_preprocessed',new_directory)
+        copy_to = copy_from.replace(old_directory,new_directory)
         shutil.copy(copy_from,copy_to)
-
+    '''
 def main(config):
     input_dir = config['IMC_Denoise']['output_directory']
     file_list = file_list_from_img_folder(img_folder=input_dir,biosamples_path=config['biosamples_file'])
-    process_all_channels_but_Cb(file_list,input_dir)
-    process_Carboplatin()
-    loc_contrast_enhancement(input_dir)
+    process_Carboplatin(config=config)
+
+    if str(config['Processing']['mode']).upper() =='CLAHE':
+        loc_contrast_enhancement(input_dir)
+    else:
+        process_all_channels_but_Cb(file_list,input_dir,config=config)
+
+
 if __name__=='__main__':
     main()

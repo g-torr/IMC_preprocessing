@@ -20,41 +20,10 @@ logger = logging.getLogger(__name__)
 #from imcsegpipe.utils import sort_channels_by_mass
 #import  imcsegpipe._imcsegpipe as imcsegpipe
 
-def preprocess_image(img: np.ndarray, hpf: Optional[float] = None) -> np.ndarray:
-    img = img.astype(np.float32)
-    if hpf is not None:
-        img = filter_hot_pixels(img, hpf)
-    return img    
-
-def filter_hot_pixels(img: np.ndarray, thres: float) -> np.ndarray:
-    kernel = np.ones((1, 3, 3), dtype=bool)
-    kernel[0, 1, 1] = False
-    max_neighbor_img = maximum_filter(img, footprint=kernel, mode="mirror")
-    return np.where(img - max_neighbor_img > thres, max_neighbor_img, img)
-def create_panel_from_acquisition(acquisition):
-    '''Take as input the acquisition from the mcd file'''
-    panel = pd.DataFrame(
-                    data={
-                        "channel": pd.Series(
-                            data=acquisition.channel_names,
-                            dtype=pd.StringDtype(),
-                        ),
-                        "name": pd.Series(
-                            data=acquisition.channel_labels,
-                            dtype=pd.StringDtype(),
-                        ),
-                    },
-                )
-    name = panel.name.str.split('-',n=1).str.get(1)
-    panel['keep'] = ~name.isna()
-    panel['name'] = name.where(panel.keep,'-')    
-    panel.loc[panel['channel'] == 'Pt195', ['name', 'keep']] = ['Carboplatin', True]#add carboplatin to panel
-
-    return panel
 
 def mcd_2_ome_tiff(config):
     '''This function extracts anything there is to extract from the mcd files and generate a metadata csv file.'''
-    reprocess_mcd = True# False skip mcd extraction if tiff file already exists
+    reprocess_mcd = True# False skip mcd extraction if tiff file already exists. Usefull if you have just ve added few leaps to collection
     root_data_folder = config['root_data_folder']
 
     path0 = os.path.join(root_data_folder,config['mcd_data_folder'])
@@ -90,8 +59,9 @@ def mcd_2_ome_tiff(config):
             file_saved+=(list(Leap_folder +'_'+acquisition_metadata.id.astype(str).values))
         except OSError:
             continue
-    acquisition_metadata = pd.concat(acquisition_metadatas, copy=False)
-    acquisition_metadata.to_csv(path0 +"/acquisition_metadata.csv",mode = 'w')
+    if reprocess_mcd:
+        acquisition_metadata = pd.concat(acquisition_metadatas, copy=False)
+        acquisition_metadata.to_csv(path0 +"/acquisition_metadata.csv",mode = 'w')
 
 def ome_tiff_2_tiff(root_data_folder,tiff_folder_name_split,tiff_folder_name_combined,biosample_path):
     '''Extracts and saves the tiff files in appropriate folders. It also correct the names whenever appropriate'''
@@ -119,7 +89,7 @@ def ome_tiff_2_tiff(root_data_folder,tiff_folder_name_split,tiff_folder_name_com
             if any([ el in description for el in ['Leap067', 'Leap068']]):
                 code = description.split('_')[0]  
             
-            if Leap_ID == 'Leap009_010_011':
+            if '009_010_011' in Leap_ID :
                 leap_9_10_11_mapper = {'19005858':'LEAP009','19005859':'LEAP011','19005860':'LEAP010'}#the sample id in the description is wrong
                 Leap_ID = leap_9_10_11_mapper[code].capitalize()
                 if str(row['id']) == '7':
