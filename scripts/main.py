@@ -4,6 +4,7 @@ import argparse
 import logging
 import os
 import logging.handlers
+import gc
 
 logging.basicConfig(filename='logging.log', level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
@@ -15,12 +16,14 @@ def IMC_Denoise_transformation(config_file):
         pass
     else:
         Denoise_train.main_train(config_file)
+        gc.collect()
         Denoise_predict.main(config_file)
-
+        gc.collect()
 def extract_mcd_to_tiff(config_file):
     if config_file['extraction']!='no':
         import imc_preprocessing.extraction as extraction
         extraction.main(config_file)
+        gc.collect()
     else:
         logging.info('Skipping extraction')
 

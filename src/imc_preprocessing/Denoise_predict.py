@@ -105,9 +105,10 @@ def process_channel(channel_name,params,weights_path,Raw_directory,output_direct
                 weights_dir = weights_path, 
                 is_load_weights = True, # load trained model for prediction
                 lambda_HF = float(params['lambda_HF']))
+    logger.info('Loading images...')
     Image_collect,Max_row_num,Max_col_num = load_imgs(channel_name,Raw_directory,myDIMR)
-
     All_img_read = transform_images(params, deepsnif, Image_collect, Max_row_num, Max_col_num)# images are padded to have the same shape
+    logger.info('Images loaded. Shape of input is '+str(All_img_read.shape)+'. Now predicting in batches of size '+str(params['batch_size']))
     All_img_denoised = deepsnif.trained_model.predict(All_img_read, batch_size = params['batch_size'])# apply Deepsnif correction
     finalise_denoised_images(params, Raw_directory, output_directory, deepsnif, Image_collect, All_img_denoised)
     #images are transformed back to their original shape and saved 
