@@ -1,5 +1,5 @@
 # IMC preprocessing
-Extraction and preprocessing pipeline for IMC data. From a single mcd file, it extracts the tiff files using [steinbock](https://bodenmillergroup.github.io/steinbock/)  and run  [IMC denoise](https://github.com/PENGLU-WashU/IMC_Denoise) for denoising. 
+Extraction and preprocessing pipeline for IMC data. From a single mcd file, it extracts the tiff files using [steinbock](https://bodenmillergroup.github.io/steinbock/)  and run  [IMC denoise](https://github.com/PENGLU-WashU/IMC_Denoise) for denoising. To reduce batch effects, we also recommend applying contrast adjustment through Contrast Limited Adaptive Histogram Equalization.  
 ## Installation
 Install the dependency IMC Denoise
 ```

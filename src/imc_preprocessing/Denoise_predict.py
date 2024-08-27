@@ -183,7 +183,7 @@ def finalise_denoised_images(params, Raw_directory, output_directory, deepsnif, 
             os.makedirs(sub_save_directory)
         tp.imsave(join(sub_save_directory, Img_name), Img_denoised.astype('float32'))
 
-        logger.info(sub_save_directory + Img_name + ' saved!')
+        logger.debug(sub_save_directory + Img_name + ' saved!')
 
 # define a class to save image information
 class single_img_info:
@@ -253,4 +253,4 @@ def main(config):
         process_channel(channel_name,params,weights_path,Raw_directory,output_directory)
         _ = gc.collect()
         end = time.time()
-        logger.info('Channel '+channel_name+'took '+str(end - start)+' seconds')
+        logger.info('Channel '+channel_name+' took '+str(end - start)+' seconds')
