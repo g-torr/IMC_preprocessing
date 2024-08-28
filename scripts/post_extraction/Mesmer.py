@@ -12,6 +12,9 @@ import argparse
 from matplotlib import pyplot as plt
 
 import tifffile
+if ~config['Mesmer']['gpu']:
+    os.environ['CUDA_VISIBLE_DEVICES'] = '-1'#use cpu if gpu is not able to handle
+
 from deepcell.applications import Mesmer
 import logging
 from ark.segmentation import marker_quantification
@@ -23,13 +26,13 @@ def almost_fuzzy_logic(img_stack,k):
     Note: if k == 0, it corresponds to the np.mean(axis = 0) functiom
     '''
     return np.sort(img_stack,axis = 0)[-k:,:,:].mean(axis = 0)
-def load_imgs_and_concatenate(tb_subset,function = None,smoothing_factor=0):
+def load_imgs_and_concatenate(tb_subset,n_top_channels = None,smoothing_factor=0):
     '''Load a series of images, rescale, and adds them up '''
-    if function is None:
+    if n_top_channels is None:
         function = lambda x:almost_fuzzy_logic(x,0)
         #gives the np.mean(,axis = 0)
     else:
-        function = lambda x:almost_fuzzy_logic(x,2)
+        function = lambda x:almost_fuzzy_logic(x,n_top_channels)
     img_out_stack = np.zeros((len(tb_subset),*imread(tb_subset.filepath.iloc[0]).shape))
     for ind,filepath in enumerate(tb_subset.filepath):
         img = imread(filepath)
