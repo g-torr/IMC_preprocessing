@@ -34,7 +34,7 @@ def process_response_metadata(config_file):
         format_sample_metadata(config_generic=config_file,config_metadata=config_metadata)
 
 def post_denoise_transformation(config_file):
-    if str(config_file['Processing']['mode']) =='NO':
+    if config_file['Processing']['skip']:
         logging.info('Skipping post denoise processing')
     elif config_file['Processing']['mode'] in ['CLAHE','unit']:
         post_Denoise_processing.main(config_file)

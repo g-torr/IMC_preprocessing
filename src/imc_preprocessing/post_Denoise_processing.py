@@ -23,7 +23,7 @@ def process_Carboplatin(config):
     # I want to learn the baseline level of Carboplatin in tissues. For that,
     # I identify the samples that we know should not have carboplatin to learn the baseline level of that marker in negative samples. 
 
-    samples_with_carboplatin = (file_list['SAMPLE_TYPE']=='RESECTION')*(file_list['NACT_treatment _group'].str.contains('carbo').fillna(False)).astype(bool)
+    samples_with_carboplatin = (file_list['SAMPLE_TYPE']=='RESECTION')*((file_list['NACT_treatment _group'].fillna('nan').str.contains('carbo')).astype(bool))
     for file in file_list[~samples_with_carboplatin].path:
         try:
             img = skimage.io.imread(file)
@@ -31,7 +31,7 @@ def process_Carboplatin(config):
             data+=[np.quantile(img,q = 0.95)]
             relative_path = Path(file).relative_to(Path(file).parents[1])# take the acquisition folder and carboplatin.tiff file 
             output_file = config['Processing']['output_directory']/relative_path # join the line above with the output directory, to create the new path
-            output_file.mkdir(parents=True, exist_ok=True)
+            output_file.parents[0].mkdir(parents=True, exist_ok=True)
             #output_file = file.replace('split_channels_nohpf','Img_Denoised/processed/')
             tp.imwrite(output_file,np.zeros(img.shape).astype('float32'))
         except FileNotFoundError:
@@ -51,17 +51,17 @@ def process_Carboplatin(config):
         
     max_data_res = max(data_res)
     for i, (img,file) in enumerate(zip(img_res,file_list[file_list['SAMPLE_TYPE']=='RESECTION'].path)):
-        img_float = skimage.exposure.rescale_intensity(img,in_range=(low_thr,max_data_res))
+        img_float = skimage.exposure.rescale_intensity(img,in_range=(low_thr,max_data_res))# everything below low_thr is zero, everything above max_data_res is 1
         q = data_res[i]
         if q>1.2:
             #if the image has a lot of signal, make it sharper
             img = skimage.exposure.rescale_intensity(skimage.exposure.equalize_hist(img_float))
         else:
-            # in this case, exposure.equalize_hist tends to overcorrect dark region overamplifying noise. Use a more noise 
+            # in this case, exposure.equalize_hist tends to overcorrect dark region overamplifying noise.
             img = skimage.exposure.rescale_intensity(skimage.exposure.equalize_adapthist(img_float))
         relative_path = Path(file).relative_to(Path(file).parents[1])# take the acquisition folder and carboplatin.tiff file 
         output_file = config['Processing']['output_directory']/relative_path # join the line above with the output directory, to create the new path
-        output_file.mkdir(parents=True, exist_ok=True)
+        output_file.parents[0].mkdir(parents=True, exist_ok=True)# create all folders up to the parent of the file
         tp.imwrite(output_file,img)
 
 def process_all_channels_but_Cb(file_list,base_dir,config):
@@ -117,7 +117,7 @@ def normalise_images_by_group(file_list, marker_list_stain, groupkey,output_path
                 relative_path = Path(path_inp).relative_to(Path(path_inp).parents[1])# take the acquisition folder and tiff file 
                 path_out = os.path.join(output_path,relative_path)  #join output_path with  Leap123_x/channel.tiff
                 #it is the name of the folder where to save
-                Path(os.path.dirname(path_out)).mkdir(parents=True, exist_ok=True)#creates the folder if missing
+                Path(os.path.dirname(path_out)).parents[0].mkdir(parents=True, exist_ok=True)#creates the folder if missing
                 skimage.io.imsave(path_out,img)
         
 
@@ -147,7 +147,7 @@ def unit_vector_image_normalisation(marker_list_stain,groupkey, marker_list_row_
             for path_inp,img in zip(imgs.files,imgs):
                 relative_path = Path(path_inp).relative_to(Path(path_inp).parents[1])# take the acquisition folder and tiff file 
                 path_out = config['Processing']['output_directory']/relative_path # join the line above with the output directory, to create the new path
-                Path(os.path.dirname(path_out)).mkdir(parents=True, exist_ok=True)#creates the folder if missing
+                Path(os.path.dirname(path_out)).parents[0].mkdir(parents=True, exist_ok=True)#creates the folder if missing
                 img_processed = skimage.exposure.rescale_intensity(img/thr,in_range=(0,1/thr))
                 skimage.io.imsave(path_out,img_processed)
         for marker in set(marker_list_stain).difference(marker_list_row_norm):
@@ -177,6 +177,8 @@ def file_list_from_img_folder(img_folder,biosamples_path):
     file_list = file_list.merge(biosamples,left_on='Leap_ID',right_on= 'LEAP_ID').drop(['LEAP_ID'],axis = 1)#add metadata on patient
     return file_list
 def loc_contrast_enhancement(config):
+    '''It creates a folder in config['Processing']['output_directory'] and saves the finally processed images.
+     Pixel intensity is rescaled from 2% and 98% and contrast is enhanced with CLAHE.'''
     def load_and_enhance(name):
         img = skimage.io.imread(name)
         p2, p98 = np.percentile(img, (2, 98))
@@ -187,15 +189,14 @@ def loc_contrast_enhancement(config):
     output_dir = config['Processing']['output_directory']
 
     file_pattern = '*.tiff'  # Change to '*.tif' if your files have the '.tif' extension
-    old_directory = Path(input_dir).parts[-1]# take the name of the folder that contains Leapxyz_a, e.g. 'non_preprocessed'
     # Create a pattern to search for subdirectories with names starting with 'Leap'
     sub_dir_pattern = os.path.join(input_dir, 'Leap*')# Leap folders that are in the denoised image folder
     paths = glob.glob(os.path.join(sub_dir_pattern, file_pattern), recursive=True)# iterator over all *.tiff images 
     imgs = skimage.io.ImageCollection(paths,load_func=load_and_enhance)
     for path_inp,img_processed in zip(imgs.files,imgs):
         relative_path = Path(path_inp).relative_to(Path(path_inp).parents[1])# take the acquisition folder and tiff file 
-        path_out = config['Processing']['output_directory']/relative_path # join the line above with the output directory, to create the new path
-        Path(os.path.dirname(path_out)).mkdir(parents=True, exist_ok=True)#creates the folder if missing
+        path_out = output_dir/relative_path # join the line above with the output directory, to create the new path
+        Path(os.path.dirname(path_out)).parents[0].mkdir(parents=True, exist_ok=True)#creates the folder if missing
         skimage.io.imsave(path_out,img_processed)
     '''
     #copy carboplatin
