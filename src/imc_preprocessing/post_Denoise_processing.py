@@ -9,6 +9,8 @@ import os
 from pathlib import Path
 
 import tifffile as tp
+import logging
+logger = logging.getLogger(__name__)
 def process_Carboplatin(config):
     '''Images from core are set with carboplatin =0. Moreover, the 99 percentile of the core images is used to normalise the images'''
     #This assumes Carboplatin is not processed by IMC_Denoise. 
@@ -65,7 +67,7 @@ def process_Carboplatin(config):
         tp.imwrite(output_file,img)
 
 def process_all_channels_but_Cb(file_list,base_dir,config):
-    '''This function computes image normalisatio and outputs in rescaled and processed folders.'''
+    '''This function computes image normalisation and outputs in rescaled and processed folders.'''
 
     file_pattern = '*.tiff'  # Change to '*.tif' if your files have the '.tif' extension
     # Create a pattern to search for subdirectories with names starting with 'Leap'
@@ -176,7 +178,7 @@ def file_list_from_img_folder(img_folder,biosamples_path):
     biosamples =pd.read_csv(biosamples_path)
     file_list = file_list.merge(biosamples,left_on='Leap_ID',right_on= 'LEAP_ID').drop(['LEAP_ID'],axis = 1)#add metadata on patient
     return file_list
-def loc_contrast_enhancement(config):
+def loc_contrast_enhancement( input_dir,output_dir):
     '''It creates a folder in config['Processing']['output_directory'] and saves the finally processed images.
      Pixel intensity is rescaled from 2% and 98% and contrast is enhanced with CLAHE.'''
     def load_and_enhance(name):
@@ -185,18 +187,17 @@ def loc_contrast_enhancement(config):
         img = skimage.exposure.rescale_intensity(img,in_range=(p2,p98), out_range = (0,.999))#added out_range to something <1 because otherwise rounding >1
         img = skimage.exposure.equalize_adapthist(img)
         return img
-    input_dir = config['IMC_Denoise']['output_directory']
-    output_dir = config['Processing']['output_directory']
 
     file_pattern = '*.tiff'  # Change to '*.tif' if your files have the '.tif' extension
     # Create a pattern to search for subdirectories with names starting with 'Leap'
     sub_dir_pattern = os.path.join(input_dir, 'Leap*')# Leap folders that are in the denoised image folder
     paths = glob.glob(os.path.join(sub_dir_pattern, file_pattern), recursive=True)# iterator over all *.tiff images 
+    paths = [path for path in paths if Path(path).stem!='Carboplatin']
     imgs = skimage.io.ImageCollection(paths,load_func=load_and_enhance)
     for path_inp,img_processed in zip(imgs.files,imgs):
         relative_path = Path(path_inp).relative_to(Path(path_inp).parents[1])# take the acquisition folder and tiff file 
         path_out = output_dir/relative_path # join the line above with the output directory, to create the new path
-        Path(os.path.dirname(path_out)).parents[0].mkdir(parents=True, exist_ok=True)#creates the folder if missing
+        Path(path_out).parents[0].mkdir(parents=True, exist_ok=True)#creates the folder if missing
         skimage.io.imsave(path_out,img_processed)
     '''
     #copy carboplatin
@@ -207,12 +208,15 @@ def loc_contrast_enhancement(config):
         shutil.copy(copy_from,copy_to)
     '''
 def main(config):
-    input_dir = config['IMC_Denoise']['output_directory']
+    input_dir = config['IMC_Denoise']['output_directory']# where images are loaded from
+    output_dir = config['Processing']['output_directory']#where images are saved in
+
     file_list = file_list_from_img_folder(img_folder=input_dir,biosamples_path=config['biosamples_file'])
     process_Carboplatin(config=config)
 
     if str(config['Processing']['mode']).upper() =='CLAHE':
-        loc_contrast_enhancement(input_dir)
+        logger.info('Proceeding with CLAHE')
+        loc_contrast_enhancement(input_dir,output_dir)
     else:
         process_all_channels_but_Cb(file_list,input_dir,config=config)
 
