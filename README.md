@@ -2,22 +2,32 @@
 Extraction and preprocessing pipeline for IMC data. From a single mcd file, it extracts the tiff files using [steinbock](https://bodenmillergroup.github.io/steinbock/)  and run  [IMC denoise](https://github.com/PENGLU-WashU/IMC_Denoise) for denoising. To reduce batch effects, we also recommend applying contrast adjustment through Contrast Limited Adaptive Histogram Equalization.  
 You can also run cell segmentation using [Mesmer](https://github.com/vanvalenlab/deepcell-tf), and create a cell table for cell based analysis using [ark-analysis](https://github.com/angelolab/ark-analysis). 
 ## Installation
-If you want to run all of the steps above, there is not an environment that fits all together. Therefore, I recommend you create 3 different python environments. 
-    - Install [IMC Denoise](https://github.com/PENGLU-WashU/IMC_Denoise) ( I have used with python 3.9 and newer tf version then in their readme)
-    - Install deepcell:
+If you want to run all of the steps above, there is not an environment that workas for all together. Therefore, I recommend you create 3 different python environments.
+### Install dependences
+1. Install [IMC Denoise](https://github.com/PENGLU-WashU/IMC_Denoise) ( I have used with python 3.9 and newer tf version then in their readme)
+    ```
+    conda create -n IMC_Denoise python=3.9
+    #follow instructions from author's repo
+    ``` 
+1. Install [deepcell](https://github.com/vanvalenlab/deepcell-tf) from pip:
     ```
     conda create -n deepcell python=3.9
     conda activate deepcell
     pip install deepcell==12.6
     ```
-    - Install ark analysis
-
+1. Install ark analysis
+### Install me
 - Download the repo and install the package in  each and every environment.
 ```
 $ git clone https://github.com/g-torr/IMC_preprocessing.git
 $ cd IMC_preprocessing
-conda activate #envirnment_name
+$ conda activate IMC_Denoise 
 $ pip install -e .
+$ conda activate deepcell 
+$ pip install -e .
+$ conda activate #ark_analysis_env
+$ pip install -e .
+
 ```
 ## How to use it
 ### Quickstart
