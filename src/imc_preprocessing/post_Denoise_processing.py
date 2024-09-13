@@ -11,14 +11,11 @@ from pathlib import Path
 import tifffile as tp
 import logging
 logger = logging.getLogger(__name__)
-def process_Carboplatin(config):
+def process_Carboplatin(file_list,output_path):
     '''Images from core are set with carboplatin =0. Moreover, the 99 percentile of the core images is used to normalise the images'''
-    #This assumes Carboplatin is not processed by IMC_Denoise. 
-    input_path = os.path.join( config['root_data_folder'],config['tiff_folder_name_split'])
-    biosamples_path  = os.path.join(config['biosamples_file'])
-    file_list = file_list_from_img_folder(input_path,biosamples_path=biosamples_path)
     file_list['path'] = file_list.path.map(lambda x:os.path.join(x,'Carboplatin.tiff'))
     #getting the 95% of core images. Also saving Carboplatin to 0
+
     data = []
     img_core = []
     # Exploring the images,  I can see that even in Core, tissue contains some Platinum and the distribution matches the shape of the tissue
@@ -32,7 +29,7 @@ def process_Carboplatin(config):
             img_core+=[img]
             data+=[np.quantile(img,q = 0.95)]
             relative_path = Path(file).relative_to(Path(file).parents[1])# take the acquisition folder and carboplatin.tiff file 
-            output_file = config['Processing']['output_directory']/relative_path # join the line above with the output directory, to create the new path
+            output_file = Path(output_path)/relative_path # join the line above with the output directory, to create the new path
             output_file.parents[0].mkdir(parents=True, exist_ok=True)
             #output_file = file.replace('split_channels_nohpf','Img_Denoised/processed/')
             tp.imwrite(output_file,np.zeros(img.shape).astype('float32'))
@@ -52,7 +49,7 @@ def process_Carboplatin(config):
         data_res +=[q]
         
     max_data_res = max(data_res)
-    for i, (img,file) in enumerate(zip(img_res,file_list[file_list['SAMPLE_TYPE']=='RESECTION'].path)):
+    for i, (img,file) in enumerate(zip(img_res,file_list[samples_with_carboplatin].path)):
         img_float = skimage.exposure.rescale_intensity(img,in_range=(low_thr,max_data_res))# everything below low_thr is zero, everything above max_data_res is 1
         q = data_res[i]
         if q>1.2:
@@ -62,7 +59,7 @@ def process_Carboplatin(config):
             # in this case, exposure.equalize_hist tends to overcorrect dark region overamplifying noise.
             img = skimage.exposure.rescale_intensity(skimage.exposure.equalize_adapthist(img_float))
         relative_path = Path(file).relative_to(Path(file).parents[1])# take the acquisition folder and carboplatin.tiff file 
-        output_file = config['Processing']['output_directory']/relative_path # join the line above with the output directory, to create the new path
+        output_file = Path(output_path)/relative_path # join the line above with the output directory, to create the new path
         output_file.parents[0].mkdir(parents=True, exist_ok=True)# create all folders up to the parent of the file
         tp.imwrite(output_file,img)
 
@@ -184,6 +181,8 @@ def loc_contrast_enhancement( input_dir,output_dir):
     def load_and_enhance(name):
         img = skimage.io.imread(name)
         p2, p98 = np.percentile(img, (2, 98))
+        if np.any(np.isnan([p2,p98])):
+            logger.warning('Nan in file '+name)
         img = skimage.exposure.rescale_intensity(img,in_range=(p2,p98), out_range = (0,.999))#added out_range to something <1 because otherwise rounding >1
         img = skimage.exposure.equalize_adapthist(img)
         return img
@@ -208,12 +207,16 @@ def loc_contrast_enhancement( input_dir,output_dir):
         shutil.copy(copy_from,copy_to)
     '''
 def main(config):
-    input_dir = config['IMC_Denoise']['output_directory']# where images are loaded from
-    output_dir = config['Processing']['output_directory']#where images are saved in
+    input_dir = config['IMC_Denoise']['output_directory']# where all images but Carboplatin are loaded from
+    output_dir = Path(config['Processing']['output_directory']).expanduser()#where images are saved to
+    #This assumes Carboplatin is not processed by IMC_Denoise. 
+    input_carbo = os.path.join( config['root_data_folder'],config['tiff_folder_name_split'])#input carboplatin channel
 
-    file_list = file_list_from_img_folder(img_folder=input_dir,biosamples_path=config['biosamples_file'])
-    process_Carboplatin(config=config)
+    biosamples_path  = os.path.join(config['biosamples_file'])
+    file_list = file_list_from_img_folder(input_carbo,biosamples_path=biosamples_path)
+    process_Carboplatin(file_list=file_list,output_path=  output_dir)
 
+    file_list = file_list_from_img_folder(img_folder=input_dir,biosamples_path=biosamples_path)
     if str(config['Processing']['mode']).upper() =='CLAHE':
         logger.info('Proceeding with CLAHE')
         loc_contrast_enhancement(input_dir,output_dir)

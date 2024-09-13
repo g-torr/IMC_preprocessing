@@ -57,7 +57,7 @@ def format_sample_metadata(config_generic,config_metadata):
 	metadata = pd.read_excel(config_metadata['metadata'],dtype={'biobank_id': str})
 	metadata = metadata.dropna(axis = 1,how = 'all')
 	metadata = metadata.drop(['Registration status','h&e', 'st', 'imc', 'la_icp_ms', 'flim'],axis = 1)
-	metadata = metadata.rename({'leap_id':'LEAP_ID','analysis_id':'Patient','sample_type':'SAMPLE_TYPE','response':'Response','General comments':'Comments'},axis = 1)
+	metadata = metadata.rename({'leap_id':'LEAP_ID','analysis_id':'Patient','sample_type':'SAMPLE_TYPE','response':'Response','General comments':'Comments','RCB Group':'RCB_Group'},axis = 1)
 	metadata = metadata.rename(columns = {'biobank_id':'BIOBANK_ID_num'})
 	metadata['LEAP_ID'] = metadata['LEAP_ID'].str.upper() # our pipeline  works with upper LEAP_ID
 	metadata['SAMPLE_TYPE'] = metadata['SAMPLE_TYPE'].str.upper()

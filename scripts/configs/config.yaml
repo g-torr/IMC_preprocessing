@@ -1,0 +1,49 @@
+
+root_data_folder:  '../../' # it is the path to the folder that contains IMC_data
+mcd_data_folder : 'IMC_data'
+extraction: 'no' #choose between no, all, mcd_2_ome_tiff,ome_tiff_2_tiff,rename_leap_id, see reformatting_all_files.py for more info
+#folder name where tiff files are saved. No skips the extractions
+tiff_folder_name_split: 'split_channels_nohpf' #folder where tiff are split channel by channel. Data are saved in root_data_folder/tiff_folder_name_split
+tiff_folder_name_combined: 'combined_tiff' #folder containing a multichannel tiff per fov, subnfolder of root_data_folder
+biosamples_file : '../processed_files/processed_response.csv' # output path to where file containing the metadata for each Leap id is created.
+# IMC denoise parameters
+IMC_Denoise:
+  skip : True #True ignore the IMC_Denoise step
+  retrain: False #force retrain of the model, False ignores training on markers that already have their weights saved in Save_directory/weights_folder
+  weights_folder: 'trained_weights' # subfolder of Save_directory where 'weights_name' and 'loss_name' saved.
+  Save_directory : '../processed_files/IMC_Denoise_intermediate_files/' #Folder where the training weights will be saved. If None, it will be saved in the default folder.
+  output_directory : '../../Img_Denoised/sept2024_release/non_processed' #path to where processed images are saved, insert absolute or relative path. Relative path refers from the folder where the script `main.py` is run
+  channels_to_exclude : 'Carboplatin' #separate channels to be excluded using a comma, e.g. 'channelA,channelB'
+  params:
+    n_neighbours : 10 # Larger n enables removing more consecutive hot pixels. 
+    n_iter : 3 # Iteration number for DIMR
+    window_size : 5
+  
+    # ### DeepSNiF configuration and training
+    # Define parameters for DeepSNiF training. If is_load_weights is True, the pre-trained model and pre-calculated range of the marker channel will be loaded. The range value is used for normalization in prediction.
+    train_epoches : 5 # training epoches, which should be about 200 for a good training result. The default is 200.
+    train_learning_rate : 0.0001 # inital learning rate. The default is 1e-3.
+    train_batch_size : 128 # training batch size. For a GPU with smaller memory, it can be tuned smaller. The default is 128.
+    pixel_mask_percent : 0.2 # percentage of the masked pixels in each patch. The default is 0.2.
+    val_set_percent : 0.15 # percentage of validation set. The default is 0.15.
+    loss_function : "I_divergence" # loss function used. The default is "I_divergence".
+    weights_name : True # trained network weights name. If None, the weights will not be saved.
+    loss_name : None # training and validation losses name, either .mat or .npz format. If not defined, the losses will not be saved.
+    is_load_weights : False # Use the trained model directly. Will not read from any saved ones.
+    lambda_HF : 3e-6 # HF regularization parameter.
+    GPU: False # whether to use GPU. True or False
+    network_size : 'small' # normal or small network to be used
+    batch_size : 16 # batch size for CNN, used in prediction. It has to be small, as the image is dimensions are = to the maximum across the samples. 
+
+# Post denoising analysis
+Processing:
+  skip : False #True ignore the post denoise processing
+  mode: 'CLAHE' # choose between 'CLAHE' or  'unit'. 
+  output_directory : '~/devices/Delta_Tissue/IMC/Img_Denoised/sept2024_release/processed' #path to where processed images are saved, insert absolute or relative path. Relative path refers from the folder where the script `main.py` is run
+Mesmer:
+  skip : False #True ignore the segmentation step
+  mask_path: '~/devices/Delta_Tissue/IMC/segmentation/sept2024_release/deepcell_input/' #path where the membrane and nuclear combined channels are saved
+  deepcell_out_path: '~/devices/Delta_Tissue/IMC/segmentation/sept2024_release/deepcell_output' #folder where segmentation mask are saved 
+  overwrite: True #overwrite cell segmentation if it already exists 
+  cell_tb_path: '~/devices/Delta_Tissue/IMC/segmentation/cell_table_sept2024'
+  gpu: False # whether to use gpu or not

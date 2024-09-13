@@ -1,5 +1,4 @@
 from  imc_preprocessing.utils import load_config,format_sample_metadata
-from imc_preprocessing import Denoise_train, Denoise_predict,post_Denoise_processing
 import argparse
 import logging
 import os
@@ -15,6 +14,7 @@ def IMC_Denoise_transformation(config_file):
         logging.info('Skippping IMC_Denoise')
         pass
     else:
+        from imc_preprocessing import Denoise_train, Denoise_predict
         Denoise_train.main_train(config_file)
         gc.collect()
         Denoise_predict.main(config_file)
@@ -37,6 +37,7 @@ def post_denoise_transformation(config_file):
     if config_file['Processing']['skip']:
         logging.info('Skipping post denoise processing')
     elif config_file['Processing']['mode'] in ['CLAHE','unit']:
+        from imc_preprocessing import post_Denoise_processing
         post_Denoise_processing.main(config_file)
     else:
         ValueError('Option '+config_file['Processing']['mode']+' not recognised')

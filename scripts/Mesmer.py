@@ -3,18 +3,17 @@ import pandas as pd
 import numpy as np
 import os
 import scipy.ndimage as ndimage
-from alpineer import io_utils
 from  imc_preprocessing.utils import load_config
 import glob
 import tqdm
 from skimage.io import imread
 import argparse
 from matplotlib import pyplot as plt
-
+from pathlib import Path
 import tifffile
 
 import logging
-
+logging.basicConfig( level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 def almost_fuzzy_logic(img_stack,k):
@@ -50,20 +49,20 @@ def create_image_file_record(tiff_dir,membrane_markers,nucl_markers):
 
     # Create a pattern to search for subdirectories with names starting with 'Leap'
     sub_dir_pattern = os.path.join(tiff_dir, 'Leap*')
-    tb = pd.DataFrame(glob.glob(os.path.join(sub_dir_pattern, file_pattern), recursive=True),columns = ['filepath'])
-    acq_mark = pd.DataFrame(list(tb.filepath.str.split('/').str[-2:]),columns = ['acquisition','marker'])
-    acq_mark['marker'] = acq_mark.marker.str.replace('.tiff','')
-    tb = pd.concat([tb,acq_mark],axis=1)
+    tb = pd.DataFrame(Path(tiff_dir).expanduser().glob('Leap*/'+file_pattern),columns = ['filepath'])
+    tb['acquisition_ID'] = tb['filepath'].map(lambda x:x.parts[-2])
+    tb['marker'] = tb['filepath'].map(lambda x:x.stem)
     tb = tb[tb.marker.isin(membrane_markers+nucl_markers)].reset_index(drop = True)#restrict to segmentation markers only
 
     tb['membrane'] = tb.marker.isin(membrane_markers)
-    tb['acquisition_ID'] = tb.filepath.str.split('/').str[-2]
     return tb
 def segment(tb, mask_path, deepcell_out_path, overwrite):
     from deepcell.applications import Mesmer
     app = Mesmer()
     for key,ind in tqdm.tqdm(tb.groupby('acquisition_ID').groups.items()):
-        if ((os.path.exists(deepcell_out_path+key+'_nuclear.tiff')& os.path.exists(deepcell_out_path+key+'_whole_cell.tiff')))&(~overwrite):
+        nucl_save_path = Path(deepcell_out_path)/(key+'_nuclear.tiff')
+        memb_save_path = Path(deepcell_out_path)/(key+'_whole_cell.tiff')
+        if ((os.path.exists(nucl_save_path))& os.path.exists(memb_save_path))&(~overwrite):
             #if cells already segmented, skip
             continue
         cond = tb.loc[ind].membrane #take membrane marker
@@ -86,17 +85,18 @@ def segment(tb, mask_path, deepcell_out_path, overwrite):
         except :
             logger.warning('Segmentation for file '+key+' failed.')
             continue
-        tifffile.imwrite(mask_path+key+'.tiff',image)#save the combined channels image        
+        memb_save_path.parents[0].mkdir(parents=True, exist_ok=True)#create directory where saving segmentation mask if doesn't exist
+        tifffile.imwrite(Path(mask_path)/(key+'.tiff'),image)#save the combined channels image        
         whole_cell_segmentation_prediction,nucl_segm_prediction = segmentation_predictions[:,:,0],segmentation_predictions[:,:,1]
-        tifffile.imwrite(deepcell_out_path+key+'_nuclear.tiff',nucl_segm_prediction)
-        tifffile.imwrite(deepcell_out_path+key+'_whole_cell.tiff',whole_cell_segmentation_prediction)
+        tifffile.imwrite(nucl_save_path,nucl_segm_prediction)
+        tifffile.imwrite(memb_save_path,whole_cell_segmentation_prediction)
 
 
 
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--config', type=str, default='../configs/config.yaml', help='Configuration file')
+    parser.add_argument('--config', type=str, default='configs/config.yaml', help='Configuration file')
     args = parser.parse_args()
     config = load_config(args.config)
 
@@ -104,10 +104,10 @@ def main():
         'HLA-DR-DQ-DP', 'CD8a', 'Beta-Catenin', 'B7-H4', 'CD3', 'CD27',
         'CD45RO', 'Vimentin']
     nucl_markers = ['DNA1','DNA2']
-    tiff_dir =  config['Processing']['output_directory']
+    tiff_dir =  Path(config['Processing']['output_directory']).expanduser()
     tb = create_image_file_record(tiff_dir=tiff_dir ,membrane_markers=membrane_markers,nucl_markers=nucl_markers)# pandas dataframe containing the path to tiff files for nuclear and membrane markers
-    mask_path = config['Mesmer']['mask_path']
-    deepcell_out_path = config['Mesmer']['deepcell_out_path']
+    mask_path = Path(config['Mesmer']['mask_path']).expanduser()
+    deepcell_out_path = Path(config['Mesmer']['deepcell_out_path']).expanduser()
     overwrite = config['Mesmer']['overwrite']
 
     if not os.path.exists(deepcell_out_path):
@@ -123,3 +123,6 @@ def main():
     logger.info('Finished segmentation.')
 
 # set up file paths
+# Entry point for the script, parses arguments and loads configuration
+if __name__ == '__main__':
+    main()

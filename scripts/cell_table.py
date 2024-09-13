@@ -4,6 +4,7 @@ from alpineer import io_utils
 from  imc_preprocessing.utils import load_config
 import os
 import logging
+from pathlib import Path
 logger = logging.getLogger(__name__)
 
 def cell_table(tiff_dir,cell_tb_path,deepcell_out_path):
@@ -58,11 +59,14 @@ def cell_table(tiff_dir,cell_tb_path,deepcell_out_path):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--config', type=str, default='../configs/config.yaml', help='Configuration file')
+    parser.add_argument('--config', type=str, default='configs/config.yaml', help='Configuration file')
     args = parser.parse_args()
     config = load_config(args.config)
-    tiff_dir =  config['Processing']['output_directory']
-    cell_tb_path = config['Mesmer']['cell_tb_path']
-    deepcell_out_path = config['Mesmer']['deepcell_out_path']
+    tiff_dir =  Path(config['Processing']['output_directory']).expanduser()
+    cell_tb_path = Path(config['Mesmer']['cell_tb_path']).expanduser()
+    deepcell_out_path = Path(config['Mesmer']['deepcell_out_path']).expanduser()
     cell_table(tiff_dir =tiff_dir,cell_tb_path=cell_tb_path,deepcell_out_path=deepcell_out_path)#compute cell table
 
+# Entry point for the script, parses arguments and loads configuration
+if __name__ == '__main__':
+    main()
